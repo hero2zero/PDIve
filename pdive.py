@@ -42,7 +42,7 @@ if HAS_COLORAMA:
 
 
 class PDIve:
-    def __init__(self, targets, output_dir="recon_output", threads=50, discovery_mode="active"):
+    def __init__(self, targets, output_dir="pdive_output", threads=50, discovery_mode="active"):
         self.targets = targets if isinstance(targets, list) else [targets]
         self.output_dir = output_dir
         self.threads = threads
@@ -750,7 +750,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
         total_ports = sum(len(host_data["ports"]) for host_data in self.results["hosts"].values())
 
         # Generate detailed text report
-        txt_file = os.path.join(self.output_dir, f"recon_report_{timestamp}.txt")
+        txt_file = os.path.join(self.output_dir, f"pdive_report_{timestamp}.txt")
         with open(txt_file, 'w') as f:
             f.write("PDIVE DETAILED SCAN REPORT\n")
             f.write("=" * 60 + "\n\n")
@@ -801,7 +801,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                 f.write("No live hosts discovered\n")
 
         # Generate CSV report
-        csv_file = os.path.join(self.output_dir, f"recon_results_{timestamp}.csv")
+        csv_file = os.path.join(self.output_dir, f"pdive_results_{timestamp}.csv")
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
 
@@ -848,7 +848,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
         total_hosts = len(self.results["hosts"])
 
         # Generate simple text report for passive mode
-        txt_file = os.path.join(self.output_dir, f"passive_discovery_{timestamp}.txt")
+        txt_file = os.path.join(self.output_dir, f"pdive_passive_{timestamp}.txt")
         with open(txt_file, 'w') as f:
             f.write("PDIVE PASSIVE DISCOVERY REPORT\n")
             f.write("=" * 60 + "\n\n")
@@ -887,7 +887,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                 f.write("No hosts discovered\n")
 
         # Generate simple CSV with just hostnames
-        csv_file = os.path.join(self.output_dir, f"passive_hosts_{timestamp}.csv")
+        csv_file = os.path.join(self.output_dir, f"pdive_hosts_{timestamp}.csv")
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
 
@@ -1024,8 +1024,8 @@ Examples:
     target_group.add_argument('-f', '--file',
                              help='File containing targets (one per line)')
 
-    parser.add_argument('-o', '--output', default='recon_output',
-                       help='Output directory (default: recon_output)')
+    parser.add_argument('-o', '--output', default='pdive_output',
+                       help='Output directory (default: pdive_output)')
     parser.add_argument('-T', '--threads', type=int, default=50,
                        help='Number of threads (default: 50)')
     parser.add_argument('-m', '--mode', choices=['active', 'passive'], default='active',
