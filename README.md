@@ -1,4 +1,4 @@
-# PDIve (Python version)
+# PDIve
 
 **Dive deep into the network**
 
@@ -227,8 +227,10 @@ DISCOVERED HOSTS
 
 - **Masscan**: Fast port scanner
   - Required for active mode (fallback to basic scan if unavailable)
+  - **Requires sudo privileges** for raw socket access
   - Install from: https://github.com/robertdavidgraham/masscan
   - Ubuntu/Debian: `sudo apt install masscan`
+  - **Usage**: Run with `sudo python3 pdive.py` or configure passwordless sudo
 
 - **Nmap**: Detailed service enumeration
   - Optional for active mode (enhanced service detection)
@@ -252,6 +254,29 @@ DISCOVERED HOSTS
 - 📈 **Security Monitoring**: Regular network security checks
 
 ## Troubleshooting
+
+### Masscan Sudo Requirements
+
+PDIve v1.3 includes intelligent masscan sudo handling. Masscan requires root privileges for raw socket access:
+
+**Option 1: Run PDIve with sudo**
+```bash
+sudo python3 pdive.py -t target.com
+```
+
+**Option 2: Configure passwordless sudo for masscan**
+```bash
+# Add to /etc/sudoers (use visudo)
+username ALL=(ALL) NOPASSWD: /usr/bin/masscan
+
+# Test configuration
+sudo -n masscan --help
+```
+
+**Option 3: Let PDIve fallback to basic port scanning**
+- PDIve automatically detects sudo availability
+- Falls back gracefully to built-in port scanner if masscan can't run
+- Provides helpful error messages and suggestions
 
 ### Virtual Environment Setup
 
@@ -346,6 +371,7 @@ python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
 
 ## Version History
 
+- **v1.3**: Enhanced masscan integration with intelligent sudo handling and improved error messages
 - **v1.2**: Rebranded to PDIve with enhanced workflow: passive mode uses only amass, active mode uses amass → masscan → nmap
 - **v1.1**: Added passive discovery mode with Amass, DNSDumpster, and crt.sh integration
 - **v1.0**: Initial release as Roverly with active scanning capabilities

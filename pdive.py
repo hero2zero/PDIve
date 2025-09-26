@@ -51,7 +51,7 @@ class PDIve:
             "scan_info": {
                 "targets": self.targets,
                 "start_time": datetime.now().isoformat(),
-                "scanner": "PDIve v1.2",
+                "scanner": "PDIve v1.3",
                 "discovery_mode": self.discovery_mode
             },
             "hosts": {},
@@ -252,7 +252,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                     try:
                         # Suppress SSL warnings and disable SSL verification for reconnaissance
                         response = requests.get(url, timeout=5, verify=False,
-                                              headers={'User-Agent': 'PDIve/1.2'})
+                                              headers={'User-Agent': 'PDIve/1.3'})
                         server_header = response.headers.get('Server', 'Unknown')
                         service_info = f"{service} ({server_header})"
                     except:
@@ -465,7 +465,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 
             # Query crt.sh API
             url = f'https://crt.sh/?q=%.{domain}&output=json'
-            response = requests.get(url, timeout=30, headers={'User-Agent': 'PDIve/1.2'})
+            response = requests.get(url, timeout=30, headers={'User-Agent': 'PDIve/1.3'})
 
             if response.status_code == 200:
                 try:
@@ -515,6 +515,28 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             self.port_scan(hosts)
             return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
 
+        # Check if we can run masscan with sudo (test sudo access)
+        try:
+            print(f"{Fore.CYAN}[*] Checking sudo access for masscan...{Style.RESET_ALL}")
+            # Try to run masscan with --help to test sudo access without actually scanning
+            test_cmd = ['sudo', '-n', 'masscan', '--help']
+            test_result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=10)
+
+            if test_result.returncode != 0:
+                print(f"{Fore.YELLOW}[!] Masscan requires sudo privileges but no passwordless sudo access detected{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}[*] Run with 'sudo python3 pdive.py' or configure passwordless sudo for masscan{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}[*] Falling back to basic port scan...{Style.RESET_ALL}")
+                self.port_scan(hosts)
+                return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
+            else:
+                print(f"{Fore.GREEN}[+] Sudo access confirmed for masscan{Style.RESET_ALL}")
+
+        except (subprocess.TimeoutExpired, Exception) as e:
+            print(f"{Fore.YELLOW}[!] Could not verify sudo access for masscan: {e}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[*] Falling back to basic port scan...{Style.RESET_ALL}")
+            self.port_scan(hosts)
+            return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
+
         masscan_results = {}
 
         # Common ports to scan quickly
@@ -530,9 +552,9 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 
             print(f"{Fore.CYAN}[*] Running masscan on {len(hosts)} hosts...{Style.RESET_ALL}")
 
-            # Run masscan with output in list format
+            # Run masscan with output in list format (requires sudo for raw sockets)
             cmd = [
-                'masscan',
+                'sudo', 'masscan',
                 '-iL', target_file_path,
                 '-p', port_range,
                 '--rate', '1000',
@@ -679,7 +701,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 
                 try:
                     response = requests.get(url, timeout=5, verify=False,
-                                          headers={'User-Agent': 'PDIve/1.2'})
+                                          headers={'User-Agent': 'PDIve/1.3'})
                     server_header = response.headers.get('Server', 'Unknown')
                     service_info = f"{service} ({server_header})"
                 except:
@@ -690,6 +712,32 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             return service_info
         except:
             return "unknown"
+
+    def resolve_domain_to_ip(self, hostname):
+        """Resolve domain name to IP address"""
+        try:
+            # Check if the hostname is already an IP address
+            ipaddress.ip_address(hostname)
+            return hostname  # Already an IP address
+        except ValueError:
+            # It's a hostname, try to resolve it
+            try:
+                ip_address = socket.gethostbyname(hostname)
+                return ip_address
+            except socket.gaierror:
+                return "N/A"  # Resolution failed
+
+    def reverse_dns_lookup(self, ip_address):
+        """Perform reverse DNS lookup on IP address"""
+        try:
+            # Validate that it's actually an IP address
+            ipaddress.ip_address(ip_address)
+
+            # Perform reverse DNS lookup
+            hostname, _, _ = socket.gethostbyaddr(ip_address)
+            return hostname
+        except (socket.herror, socket.gaierror, ValueError):
+            return "N/A"  # Reverse lookup failed or invalid IP
 
     def generate_report(self):
         """Generate comprehensive scan reports in text and CSV format"""
@@ -725,8 +773,23 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             f.write("-" * 20 + "\n")
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
-                    f.write(f"\nHost: {host}\n")
-                    f.write("=" * (len(host) + 6) + "\n")
+                    # Resolve domain to IP address
+                    ip_address = self.resolve_domain_to_ip(host)
+
+                    # Perform reverse DNS lookup on the IP address
+                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+
+                    f.write(f"\nHost: {host}")
+                    if ip_address != host and ip_address != "N/A":
+                        f.write(f" ({ip_address})")
+                    f.write("\n")
+
+                    # Add reverse DNS information if available and different from host
+                    if reverse_dns != "N/A" and reverse_dns != host:
+                        f.write(f"Reverse DNS: {reverse_dns}\n")
+
+                    f.write("=" * (len(host) + 6 + (len(ip_address) + 3 if ip_address != host and ip_address != "N/A" else 0)) + "\n")
+
                     if data["ports"]:
                         f.write("Open Ports:\n")
                         for port, port_data in data["ports"].items():
@@ -743,16 +806,24 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             writer = csv.writer(f)
 
             # CSV Headers
-            writer.writerow(['Host', 'Port', 'Protocol', 'State', 'Service', 'Scan_Time'])
+            writer.writerow(['Host', 'IP_Address', 'Reverse_DNS', 'Port', 'Protocol', 'State', 'Service', 'Scan_Time'])
 
             # CSV Data
             scan_time = self.results['scan_info']['start_time']
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
+                    # Resolve domain to IP address
+                    ip_address = self.resolve_domain_to_ip(host)
+
+                    # Perform reverse DNS lookup on the IP address
+                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+
                     if data["ports"]:
                         for port, port_data in data["ports"].items():
                             writer.writerow([
                                 host,
+                                ip_address,
+                                reverse_dns,
                                 port,
                                 'tcp',
                                 port_data.get('state', 'open'),
@@ -761,7 +832,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                             ])
                     else:
                         # Host is up but no ports detected
-                        writer.writerow([host, '', '', 'host_up', 'no_open_ports', scan_time])
+                        writer.writerow([host, ip_address, reverse_dns, '', '', 'host_up', 'no_open_ports', scan_time])
 
         print(f"{Fore.GREEN}[+] Reports saved to:{Style.RESET_ALL}")
         print(f"  - Detailed Report: {txt_file}")
@@ -799,7 +870,19 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             f.write("-" * 20 + "\n")
             if self.results["hosts"]:
                 for host in sorted(self.results["hosts"].keys()):
-                    f.write(f"{host}\n")
+                    # Resolve domain to IP address
+                    ip_address = self.resolve_domain_to_ip(host)
+
+                    # Perform reverse DNS lookup on the IP address
+                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+
+                    if ip_address != host and ip_address != "N/A":
+                        if reverse_dns != "N/A" and reverse_dns != host and reverse_dns != ip_address:
+                            f.write(f"{host} ({ip_address}) [rDNS: {reverse_dns}]\n")
+                        else:
+                            f.write(f"{host} ({ip_address})\n")
+                    else:
+                        f.write(f"{host}\n")
             else:
                 f.write("No hosts discovered\n")
 
@@ -809,14 +892,20 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
             writer = csv.writer(f)
 
             # CSV Headers
-            writer.writerow(['Host', 'Discovery_Method', 'Scan_Time'])
+            writer.writerow(['Host', 'IP_Address', 'Reverse_DNS', 'Discovery_Method', 'Scan_Time'])
 
             # CSV Data
             scan_time = self.results['scan_info']['start_time']
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
+                    # Resolve domain to IP address
+                    ip_address = self.resolve_domain_to_ip(host)
+
+                    # Perform reverse DNS lookup on the IP address
+                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+
                     discovery_method = data.get('discovery_method', 'passive')
-                    writer.writerow([host, discovery_method, scan_time])
+                    writer.writerow([host, ip_address, reverse_dns, discovery_method, scan_time])
 
         print(f"{Fore.GREEN}[+] Passive discovery reports saved to:{Style.RESET_ALL}")
         print(f"  - Host List Report: {txt_file}")
@@ -943,7 +1032,7 @@ Examples:
                        help='Discovery mode: active (default) or passive')
     parser.add_argument('--nmap', action='store_true',
                        help='Enable detailed Nmap scanning (Active mode only)')
-    parser.add_argument('--version', action='version', version='PDIve 1.2')
+    parser.add_argument('--version', action='version', version='PDIve 1.3')
 
     args = parser.parse_args()
 
