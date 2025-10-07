@@ -749,8 +749,11 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
         total_hosts = len(self.results["hosts"])
         total_ports = sum(len(host_data["ports"]) for host_data in self.results["hosts"].values())
 
+        # Extract the directory name to use as prefix
+        dir_name = os.path.basename(self.output_dir)
+
         # Generate detailed text report
-        txt_file = os.path.join(self.output_dir, f"pdive_report_{timestamp}.txt")
+        txt_file = os.path.join(self.output_dir, f"{dir_name}_report_{timestamp}.txt")
         with open(txt_file, 'w') as f:
             f.write("PDIVE DETAILED SCAN REPORT\n")
             f.write("=" * 60 + "\n\n")
@@ -801,7 +804,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                 f.write("No live hosts discovered\n")
 
         # Generate CSV report
-        csv_file = os.path.join(self.output_dir, f"pdive_results_{timestamp}.csv")
+        csv_file = os.path.join(self.output_dir, f"{dir_name}_results_{timestamp}.csv")
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
 
@@ -847,8 +850,11 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 
         total_hosts = len(self.results["hosts"])
 
+        # Extract the directory name to use as prefix
+        dir_name = os.path.basename(self.output_dir)
+
         # Generate simple text report for passive mode
-        txt_file = os.path.join(self.output_dir, f"pdive_passive_{timestamp}.txt")
+        txt_file = os.path.join(self.output_dir, f"{dir_name}_passive_{timestamp}.txt")
         with open(txt_file, 'w') as f:
             f.write("PDIVE PASSIVE DISCOVERY REPORT\n")
             f.write("=" * 60 + "\n\n")
@@ -887,7 +893,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                 f.write("No hosts discovered\n")
 
         # Generate simple CSV with just hostnames
-        csv_file = os.path.join(self.output_dir, f"pdive_hosts_{timestamp}.csv")
+        csv_file = os.path.join(self.output_dir, f"{dir_name}_hosts_{timestamp}.csv")
         with open(csv_file, 'w', newline='') as f:
             writer = csv.writer(f)
 
