@@ -83,7 +83,7 @@ python3 pdive.py -t 10.0.0.1 --nmap
 ### Optional Arguments
 ```bash
 -m, --mode      # Discovery mode: active (default) or passive
--o, --output    # Output directory (default: recon_output)
+-o, --output    # Output directory (default: pdive_output)
 -T, --threads   # Number of threads (default: 50)
 --nmap          # Enable detailed Nmap scanning (active mode only)
 --version       # Show version information
@@ -321,22 +321,22 @@ python3 pdive.py -t client.com -o "projects/client_pentest/recon"
 ### Report Types Generated
 
 #### Passive Mode Reports
-1. **Host List Report** (`passive_discovery_TIMESTAMP.txt`)
+1. **Host List Report** (`pdive_passive_TIMESTAMP.txt`)
    - Summary statistics
    - Discovered hosts list
    - DNS resolution information
 
-2. **CSV Host List** (`passive_hosts_TIMESTAMP.csv`)
+2. **CSV Host List** (`pdive_hosts_TIMESTAMP.csv`)
    - Host,IP_Address,Reverse_DNS,Discovery_Method,Scan_Time
    - Suitable for spreadsheet analysis
 
 #### Active Mode Reports
-1. **Detailed Text Report** (`recon_report_TIMESTAMP.txt`)
+1. **Detailed Text Report** (`pdive_report_TIMESTAMP.txt`)
    - Scan summary with statistics
    - Host-by-host analysis
    - Port and service details
 
-2. **CSV Results** (`recon_results_TIMESTAMP.csv`)
+2. **CSV Results** (`pdive_results_TIMESTAMP.csv`)
    - Host,IP_Address,Reverse_DNS,Port,Protocol,State,Service,Scan_Time
    - Database-ready format
 
@@ -345,28 +345,28 @@ python3 pdive.py -t client.com -o "projects/client_pentest/recon"
 #### Passive Mode Analysis
 ```bash
 # Extract all discovered subdomains
-grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' passive_discovery_*.txt
+grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' pdive_passive_*.txt
 
 # Count discoveries by domain
-cat passive_hosts_*.csv | cut -d',' -f1 | sort | uniq -c | sort -nr
+cat pdive_hosts_*.csv | cut -d',' -f1 | sort | uniq -c | sort -nr
 
 # Find interesting subdomains
-grep -E '(api|admin|test|dev|staging|vpn|mail)' passive_discovery_*.txt
+grep -E '(api|admin|test|dev|staging|vpn|mail)' pdive_passive_*.txt
 ```
 
 #### Active Mode Analysis
 ```bash
 # Extract all open ports
-grep "Open Ports:" -A 10 recon_report_*.txt
+grep "Open Ports:" -A 10 pdive_report_*.txt
 
 # Find web services
-grep -E "(80|443|8080|8443)" recon_results_*.csv
+grep -E "(80|443|8080|8443)" pdive_results_*.csv
 
 # Identify SSH services
-grep ":22/tcp" recon_report_*.txt
+grep ":22/tcp" pdive_report_*.txt
 
 # Count services by type
-cut -d',' -f7 recon_results_*.csv | sort | uniq -c | sort -nr
+cut -d',' -f7 pdive_results_*.csv | sort | uniq -c | sort -nr
 ```
 
 ### Integration with Other Tools
@@ -374,7 +374,7 @@ cut -d',' -f7 recon_results_*.csv | sort | uniq -c | sort -nr
 #### Nmap Integration
 ```bash
 # Extract hosts with open ports for detailed nmap scan
-grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" recon_results_*.csv | \
+grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" pdive_results_*.csv | \
     cut -d',' -f1 | sort -u > live_hosts.txt
 
 # Run custom nmap scan on discovered hosts
@@ -384,7 +384,7 @@ nmap -sV -sC -iL live_hosts.txt -oA detailed_scan
 #### Masscan Integration
 ```bash
 # Extract IP ranges for custom masscan
-grep -E "^[0-9]+\.[0-9]+\.[0-9]+\." passive_hosts_*.csv | \
+grep -E "^[0-9]+\.[0-9]+\.[0-9]+\." pdive_hosts_*.csv | \
     cut -d',' -f2 | sort -u > target_ips.txt
 
 # Custom masscan with specific ports
@@ -569,6 +569,7 @@ nmap --version
 
 # Check Python modules
 python3 -c "import requests, colorama, urllib3; print('Python modules OK')"
+python3 -c "import nmap; print('python-nmap module OK')"
 
 # Check network connectivity
 ping -c 1 8.8.8.8
@@ -636,8 +637,8 @@ python3 pdive.py -t company.com -m passive -o "monitoring/passive/${DATE}"
 python3 pdive.py -t "company.com,company.org" -o "monitoring/active/${DATE}"
 
 # Compare results over time
-diff monitoring/passive/20231201/passive_hosts_*.csv \
-     monitoring/passive/20231215/passive_hosts_*.csv
+diff monitoring/passive/20231201/pdive_hosts_*.csv \
+     monitoring/passive/20231215/pdive_hosts_*.csv
 ```
 
 ### Red Team Reconnaissance

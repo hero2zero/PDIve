@@ -1,4 +1,4 @@
-# PDIve (Python Edition)
+# PDIve
 
 **Dive deep into the network**
 
@@ -47,10 +47,10 @@ PDIve now supports two distinct reconnaissance modes:
 
 1. **Install System Dependencies**:
 
-   **Ubuntu/Debian:**
+   **Ubuntu/Debian/Kali:**
    ```bash
    sudo apt update
-   sudo apt install python3 python3-pip amass masscan nmap
+   sudo apt install python3 python3-pip amass masscan nmap python3-nmap
    ```
 
    **Manual Installation:**
@@ -112,7 +112,7 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `-t, --target`: Target IP address, hostname, CIDR range, or comma-separated list
 - `-f, --file`: File containing targets (one per line)
 - `-m, --mode`: Discovery mode - `active` (default) or `passive`
-- `-o, --output`: Output directory (default: recon_output)
+- `-o, --output`: Output directory (default: pdive_output)
 - `-T, --threads`: Number of threads (default: 50)
 - `--nmap`: Enable detailed Nmap scanning (**Active mode only**)
 - `--version`: Show version information
@@ -161,7 +161,7 @@ server.local
 
 ### Passive Mode Reports
 
-**Host List Report (`passive_discovery_TIMESTAMP.txt`)**:
+**Host List Report (`pdive_passive_TIMESTAMP.txt`)**:
 ```
 PDIVE PASSIVE DISCOVERY REPORT
 ============================================================
@@ -180,18 +180,18 @@ DISCOVERED HOSTS
   • www.example.com
 ```
 
-**CSV Host List (`passive_hosts_TIMESTAMP.csv`)**:
+**CSV Host List (`pdive_hosts_TIMESTAMP.csv`)**:
 - Simple format: Host, Discovery_Method, Scan_Time
 - Perfect for further analysis and integration
 
 ### Active Mode Reports
 
-**Detailed Text Report (`recon_report_YYYYMMDD_HHMMSS.txt`)**:
+**Detailed Text Report (`pdive_report_YYYYMMDD_HHMMSS.txt`)**:
 - Complete scan summary with timestamps and statistics
 - Detailed host information with port and service listings
 - Professional format suitable for documentation
 
-**CSV Report (`recon_results_YYYYMMDD_HHMMSS.csv`)**:
+**CSV Report (`pdive_results_YYYYMMDD_HHMMSS.csv`)**:
 - Structured data: Host, Port, Protocol, State, Service, Scan_Time
 - Compatible with Excel, databases, and analysis tools
 
@@ -232,10 +232,11 @@ DISCOVERED HOSTS
   - Ubuntu/Debian: `sudo apt install masscan`
   - **Usage**: Run with `sudo python3 pdive.py` or configure passwordless sudo
 
-- **Nmap**: Detailed service enumeration
+- **Nmap and Python-Nmap Module**: Detailed service enumeration
   - Optional for active mode (enhanced service detection)
   - Install from: https://nmap.org/download.html
-  - Ubuntu/Debian: `sudo apt install nmap`
+  - Ubuntu/Debian/Kali: `sudo apt install nmap python3-nmap`
+  - **Note**: Use system package `python3-nmap` to avoid "externally-managed-environment" errors
 
 ## Use Cases
 
@@ -298,17 +299,37 @@ python pdive.py -t your_target
 
 ### Missing System Packages
 
-On Debian/Ubuntu systems:
+On Debian/Ubuntu/Kali systems:
 
 ```bash
-# Install all required packages
+# Install all required packages (including python3-nmap)
 sudo apt update
-sudo apt install python3-venv python3-pip amass masscan nmap
+sudo apt install python3-venv python3-pip amass masscan nmap python3-nmap
 
 # Create virtual environment
 python3 -m venv recon_env
 source recon_env/bin/activate
 pip install -r requirements.txt
+
+# Verify nmap module is available
+python3 -c "import nmap; print('nmap module available')"
+```
+
+### Nmap Module Not Available
+
+If you see "Note: nmap module not available, nmap scanning disabled":
+
+```bash
+# Install python3-nmap system package (recommended for Kali/Debian/Ubuntu)
+sudo apt install python3-nmap
+
+# Verify installation
+python3 -c "import nmap; print('nmap module available')"
+
+# Alternative: Install via pip in virtual environment
+python3 -m venv recon_env
+source recon_env/bin/activate
+pip install python-nmap
 ```
 
 ### Amass Configuration Issues

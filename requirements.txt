@@ -2,3 +2,8 @@ requests>=2.31.0
 colorama>=0.4.6
 urllib3>=2.0.4
 python-nmap>=0.7.1
+
+# Note: On Debian/Ubuntu/Kali systems, python-nmap should be installed via system package manager:
+#   sudo apt install python3-nmap
+# This avoids "externally-managed-environment" errors.
+# The pip package (python-nmap) can be used in virtual environments or on other systems.
