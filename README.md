@@ -1,10 +1,10 @@
-# PDIve
+# PDIve (Python Edition)
 
 **Dive deep into the network**
 
 An automated penetration testing discovery tool designed for authorized security assessments and defensive testing, featuring both passive and active reconnaissance capabilities.
 
-## ⚠️ Legal Notice
+## Legal Notice
 
 **FOR AUTHORIZED SECURITY TESTING ONLY**
 
@@ -16,13 +16,13 @@ This tool is intended for legitimate security professionals, penetration testers
 
 PDIve now supports two distinct reconnaissance modes:
 
-#### 🔍 **Passive Discovery Mode**
+#### **Passive Discovery Mode**
 - **Amass Integration**: Passive subdomain enumeration using OWASP Amass only
 - **OSINT-focused**: No active network scanning or probing
 - **Stealth Operation**: Minimal network footprint for covert reconnaissance
 - **Pure Passive**: Uses only amass for subdomain discovery
 
-#### ⚡ **Active Discovery Mode** (Default)
+#### **Active Discovery Mode** (Default)
 - **Phase 1**: Passive subdomain discovery with Amass
 - **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
