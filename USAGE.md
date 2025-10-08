@@ -28,8 +28,11 @@ which amass masscan nmap
 # Passive discovery (minimal network footprint)
 python3 pdive.py -t example.com -m passive
 
-# Active discovery (comprehensive scanning)
+# Active discovery (comprehensive scanning, no ICMP ping)
 python3 pdive.py -t 192.168.1.0/24
+
+# Active discovery with ICMP ping enabled
+python3 pdive.py -t 192.168.1.0/24 --ping
 
 # Active discovery with detailed service detection
 python3 pdive.py -t 10.0.0.1 --nmap
@@ -62,9 +65,14 @@ python3 pdive.py -t 10.0.0.1 --nmap
 
 **Workflow**:
 1. **Phase 1**: Amass passive subdomain discovery
-2. **Phase 2**: Host discovery (ping + port-based detection)
+2. **Phase 2**: Host discovery (port-based detection; optional ICMP ping with --ping)
 3. **Phase 3**: Fast port scanning with Masscan (1-65535)
 4. **Phase 4**: Service enumeration (basic or Nmap if enabled)
+
+**Stealth Features**:
+- ICMP ping disabled by default to avoid IDS/IPS detection
+- Port-based discovery checks common ports (80, 443, 22, etc.) to verify hosts
+- Use `--ping` flag only when ICMP is not blocked and stealth is not a concern
 
 **Best For**:
 - Authorized penetration testing
@@ -86,6 +94,7 @@ python3 pdive.py -t 10.0.0.1 --nmap
 -o, --output    # Output directory (default: pdive_output)
 -T, --threads   # Number of threads (default: 50)
 --nmap          # Enable detailed Nmap scanning (active mode only)
+--ping          # Enable ICMP ping for host discovery (disabled by default)
 --version       # Show version information
 ```
 
@@ -95,6 +104,7 @@ python3 pdive.py -t 10.0.0.1 --nmap
 python3 pdive.py -t target.com
 python3 pdive.py -f targets.txt
 python3 pdive.py -t "ip1,ip2,domain" -m active --nmap
+python3 pdive.py -t 192.168.1.0/24 --ping --nmap
 python3 pdive.py -f domains.txt -m passive -o results
 
 # Invalid combinations
@@ -203,8 +213,11 @@ python3 pdive.py -f corp_domains.txt -m passive -o corporate_recon
 
 ### Basic Active Discovery
 ```bash
-# Local network scan
+# Local network scan (no ICMP ping, port-based discovery only)
 python3 pdive.py -t 192.168.1.0/24
+
+# Local network scan with ICMP ping enabled
+python3 pdive.py -t 192.168.1.0/24 --ping
 
 # Single host comprehensive scan
 python3 pdive.py -t 10.0.0.1 --nmap
@@ -213,17 +226,22 @@ python3 pdive.py -t 10.0.0.1 --nmap
 python3 pdive.py -t "192.168.1.1,example.com,server.local"
 ```
 
-### Expected Output - Active Mode
+### Expected Output - Active Mode (Default, No Ping)
 ```
 [+] Starting Active Discovery Mode
+[!] Ping is disabled by default. Use --ping to enable ICMP ping discovery.
 [*] Phase 1: Passive subdomain discovery with amass
 [*] Phase 2: Host discovery and connectivity check
 
 [+] Starting Host Discovery...
 [*] Processing target: 192.168.1.0/24
-[*] Phase 1: Ping discovery...
-[+] Host discovered (ping): 192.168.1.1
-[+] Host discovered (ping): 192.168.1.100
+[*] Ping discovery disabled (use --ping to enable)
+[*] Phase 1: Port-based discovery for 254 hosts...
+[+] Host discovered (port): 192.168.1.1
+[+] Host discovered (port): 192.168.1.100
+
+[*] Host discovery completed. Found 2 live hosts from 254 total hosts.
+[*] All hosts discovered via port-based detection (ping disabled)
 
 [*] Phase 3: Fast port scanning with masscan
 [*] Running masscan on 2 hosts...
@@ -239,14 +257,17 @@ python3 pdive.py -t "192.168.1.1,example.com,server.local"
 
 ### Network Segment Discovery
 ```bash
-# Scan multiple network segments
+# Scan multiple network segments (stealth mode, no ping)
 python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" -T 100
 
-# DMZ network scan with detailed enumeration
-sudo python3 pdive.py -t 172.16.0.0/24 --nmap -o dmz_scan
+# DMZ network scan with detailed enumeration and ping
+sudo python3 pdive.py -t 172.16.0.0/24 --nmap --ping -o dmz_scan
 
-# Internal infrastructure discovery
+# Internal infrastructure discovery (stealth)
 python3 pdive.py -t "192.168.0.0/16" -T 200 -o internal_recon
+
+# Internal scan with ICMP ping (when firewall allows)
+python3 pdive.py -t "192.168.0.0/16" -T 200 --ping -o internal_recon
 ```
 
 ### Domain-to-IP Active Scanning
@@ -276,11 +297,17 @@ python3 pdive.py -t 172.16.0.0/12 -T 50 -o large_scan
 
 ### Stealth and Rate Limiting
 ```bash
-# Minimal thread count for stealth
+# Maximum stealth: low threads, no ping
 python3 pdive.py -t target.com -T 5
 
-# Passive-only reconnaissance
+# Stealth scan with moderate speed
+python3 pdive.py -t 192.168.1.0/24 -T 20
+
+# Passive-only reconnaissance (no active probing)
 python3 pdive.py -t "target1.com,target2.org,target3.net" -m passive
+
+# Less stealthy: enable ping for faster discovery
+python3 pdive.py -t 192.168.1.0/24 -T 50 --ping
 
 # Active scan without masscan (slower but more controlled)
 # PDIve automatically falls back if masscan sudo access unavailable
@@ -421,25 +448,31 @@ Do you have authorization to scan these targets? (y/N):
 
 #### Start Small and Scale
 ```bash
-# 1. Test with single host
+# 1. Test with single host (no ping for stealth)
 python3 pdive.py -t single-host.com -T 5
 
-# 2. Small network segment
+# 2. Small network segment (stealth mode)
 python3 pdive.py -t 192.168.1.0/28 -T 10
 
-# 3. Full network (if authorized)
+# 3. Full network with ping (if authorized and network allows)
+python3 pdive.py -t 192.168.0.0/16 -T 50 --ping
+
+# 4. Full network stealth mode (no ping)
 python3 pdive.py -t 192.168.0.0/16 -T 50
 ```
 
 #### Progressive Disclosure
 ```bash
-# Phase 1: Passive reconnaissance (minimal impact)
+# Phase 1: Passive reconnaissance (minimal impact, no active scanning)
 python3 pdive.py -t target.com -m passive
 
-# Phase 2: Host discovery (low impact)
+# Phase 2: Stealth host discovery (low impact, no ping)
 python3 pdive.py -t target.com -T 10
 
-# Phase 3: Service enumeration (medium impact)
+# Phase 3: Standard host discovery with ping (medium impact)
+python3 pdive.py -t target.com -T 20 --ping
+
+# Phase 4: Service enumeration with nmap (higher impact)
 python3 pdive.py -t target.com --nmap -T 20
 ```
 
@@ -459,15 +492,27 @@ netstat -i  # Monitor network interface utilization
 
 #### Firewall and IDS Awareness
 ```bash
-# Slower scanning to avoid detection
+# Maximum stealth: no ping, low threads
 python3 pdive.py -t target.com -T 5
 
-# Passive-only to avoid network signatures
+# Moderate stealth: port-based discovery only (default)
+python3 pdive.py -t target.com -T 20
+
+# Passive-only to avoid all network signatures
 python3 pdive.py -t target.com -m passive
+
+# Less stealthy: ICMP ping enabled (will trigger IDS/IPS)
+python3 pdive.py -t target.com -T 20 --ping
 
 # Distributed scanning (manual process)
 # Split large networks across multiple systems/times
 ```
+
+**Stealth Recommendations**:
+- **Never use --ping** on networks with active IDS/IPS
+- Port-based discovery (default) is less likely to trigger alerts
+- Reduce thread count (`-T 5-10`) for maximum stealth
+- Use passive mode when stealth is paramount
 
 #### Network Bandwidth Management
 ```bash
@@ -611,19 +656,22 @@ sudo tcpdump -i any port 53
 
 ### Penetration Testing Workflow
 ```bash
-# 1. Passive reconnaissance
+# 1. Passive reconnaissance (OSINT phase)
 python3 pdive.py -t client.com -m passive -o "pentest/01-passive"
 
-# 2. Active host discovery
-python3 pdive.py -t client.com -o "pentest/02-discovery" -T 50
+# 2. Stealth active host discovery (no ping)
+python3 pdive.py -t client.com -o "pentest/02-stealth-discovery" -T 50
 
-# 3. Detailed enumeration
-sudo python3 pdive.py -t client.com --nmap -o "pentest/03-detailed" -T 100
+# 3. Standard active discovery (with ping if allowed)
+python3 pdive.py -t client.com --ping -o "pentest/03-standard-discovery" -T 50
 
-# 4. Infrastructure mapping
-python3 pdive.py -t "client.com,client.org,client.net" --nmap -o "pentest/04-infrastructure"
+# 4. Detailed enumeration with nmap
+sudo python3 pdive.py -t client.com --nmap -o "pentest/04-detailed" -T 100
 
-# 5. Analysis and reporting
+# 5. Infrastructure mapping
+python3 pdive.py -t "client.com,client.org,client.net" --nmap --ping -o "pentest/05-infrastructure"
+
+# 6. Analysis and reporting
 grep -r "ssh\|rdp\|ftp" pentest/*/
 ```
 
@@ -643,14 +691,17 @@ diff monitoring/passive/20231201/pdive_hosts_*.csv \
 
 ### Red Team Reconnaissance
 ```bash
-# Phase 1: Stealth passive collection
+# Phase 1: Stealth passive collection (no network footprint)
 python3 pdive.py -t target.com -m passive -T 5 -o "redteam/phase1"
 
-# Phase 2: Minimal-impact active probing
+# Phase 2: Minimal-impact active probing (no ping, low threads)
 python3 pdive.py -t target.com -T 5 -o "redteam/phase2"
 
-# Phase 3: Targeted enumeration (high-value targets only)
+# Phase 3: Targeted enumeration (high-value targets only, still no ping)
 python3 pdive.py -t high-value-hosts.txt --nmap -T 10 -o "redteam/phase3"
+
+# IMPORTANT: Never use --ping during red team operations
+# ICMP ping will trigger IDS/IPS alerts and expose your presence
 ```
 
 This comprehensive usage guide should help users effectively utilize PDIve v1.3 for their authorized security testing and reconnaissance needs.

@@ -227,6 +227,7 @@ python3 pdive.py --version
 python3 pdive.py --help
 
 # Quick test scan (requires confirmation)
+# Note: Ping is disabled by default for stealth
 echo "y" | python3 pdive.py -t 127.0.0.1 -T 5
 ```
 
@@ -377,8 +378,11 @@ python3 pdive.py --version
 # Test passive mode (safe)
 echo "y" | python3 pdive.py -t example.com -m passive -T 5
 
-# Test active mode with localhost (safe)
+# Test active mode with localhost (safe, no ping by default)
 echo "y" | python3 pdive.py -t 127.0.0.1 -T 5
+
+# Test active mode with ping enabled
+echo "y" | python3 pdive.py -t 127.0.0.1 -T 5 --ping
 
 # Test sudo detection
 python3 pdive.py --help | grep -A 5 "masscan"

@@ -1,4 +1,4 @@
-# PDIve (Python Edition)
+# PDIve
 
 **Dive deep into the network**
 
@@ -24,9 +24,10 @@ PDIve now supports two distinct reconnaissance modes:
 
 #### ⚡ **Active Discovery Mode** (Default)
 - **Phase 1**: Passive subdomain discovery with Amass
-- **Phase 2**: Host discovery and connectivity verification
+- **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
 - **Phase 4**: Detailed service enumeration with Nmap (on masscan results)
+- **Stealth by Default**: ICMP ping disabled by default; use `--ping` to enable
 - **Comprehensive Analysis**: Full end-to-end reconnaissance workflow
 
 ### General Features
@@ -87,11 +88,14 @@ python pdive.py -t "example.com,testsite.com" -m passive
 Traditional network scanning and analysis:
 
 ```bash
-# Basic active scan
+# Basic active scan (port-based discovery only, no ping)
 python pdive.py -t 192.168.1.0/24
 
 # Active scan with nmap integration
 python pdive.py -t 10.0.0.1 --nmap
+
+# Active scan with ping enabled (less stealthy)
+python pdive.py -t 192.168.1.0/24 --ping
 
 # Multiple targets active scan
 python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
@@ -115,11 +119,13 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `-o, --output`: Output directory (default: pdive_output)
 - `-T, --threads`: Number of threads (default: 50)
 - `--nmap`: Enable detailed Nmap scanning (**Active mode only**)
+- `--ping`: Enable ICMP ping for host discovery (**disabled by default for stealth**)
 - `--version`: Show version information
 
 **Notes**:
 - Either `-t` or `-f` is required, but not both
 - `--nmap` flag cannot be used with passive mode
+- `--ping` is disabled by default for stealth; port-based discovery is used instead
 - Passive mode works best with domain names, not IP addresses
 
 ### Target File Format
@@ -152,10 +158,12 @@ server.local
 
 1. **Authorization Check**: Prompts user to confirm scanning authorization
 2. **Phase 1 - Amass Discovery**: Passive subdomain enumeration using amass
-3. **Phase 2 - Host Discovery**: Ping sweep and port-based host detection on all discovered hosts
+3. **Phase 2 - Host Discovery**: Port-based host detection (optional ICMP ping with --ping flag)
 4. **Phase 3 - Masscan**: Fast port scanning (1-65535) on all live hosts
 5. **Phase 4 - Nmap Enumeration**: Detailed service/version detection on masscan results
 6. **Report Generation**: Creates comprehensive scan reports
+
+**Note**: ICMP ping is disabled by default for stealth. PDIve uses port-based discovery (checks common ports like 80, 443, 22) to detect live hosts without generating ICMP traffic.
 
 ## Output and Reports
 
@@ -392,6 +400,7 @@ python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
 
 ## Version History
 
+- **v1.3.1**: Disabled ICMP ping by default for stealth operations; added `--ping` flag for optional ICMP discovery
 - **v1.3**: Enhanced masscan integration with intelligent sudo handling and improved error messages
 - **v1.2**: Rebranded to PDIve with enhanced workflow: passive mode uses only amass, active mode uses amass → masscan → nmap
 - **v1.1**: Added passive discovery mode with Amass, DNSDumpster, and crt.sh integration

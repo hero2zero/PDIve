@@ -42,11 +42,12 @@ if HAS_COLORAMA:
 
 
 class PDIve:
-    def __init__(self, targets, output_dir="pdive_output", threads=50, discovery_mode="active"):
+    def __init__(self, targets, output_dir="pdive_output", threads=50, discovery_mode="active", enable_ping=False):
         self.targets = targets if isinstance(targets, list) else [targets]
         self.output_dir = output_dir
         self.threads = threads
         self.discovery_mode = discovery_mode
+        self.enable_ping = enable_ping
         self.results = {
             "scan_info": {
                 "targets": self.targets,
@@ -83,6 +84,7 @@ Targets ({len(self.targets)}): {Fore.GREEN}{targets_display}{Style.RESET_ALL}
 Output Directory: {Fore.GREEN}{self.output_dir}{Style.RESET_ALL}
 Threads: {Fore.GREEN}{self.threads}{Style.RESET_ALL}
 Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
+Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 """
         print(banner)
 
@@ -109,7 +111,7 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
         return len(valid_targets) > 0
 
     def host_discovery(self):
-        """Perform host discovery using ping and port-based detection"""
+        """Perform host discovery using optional ping and port-based detection"""
         print(f"\n{Fore.YELLOW}[+] Starting Host Discovery...{Style.RESET_ALL}")
 
         all_hosts = []
@@ -155,22 +157,30 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
                     continue
             return None
 
-        print(f"{Fore.CYAN}[*] Phase 1: Ping discovery...{Style.RESET_ALL}")
-        with ThreadPoolExecutor(max_workers=self.threads) as executor:
-            futures = [executor.submit(ping_host, host) for host in all_hosts]
+        # Phase 1: Ping discovery (only if enabled)
+        if self.enable_ping:
+            print(f"{Fore.CYAN}[*] Phase 1: Ping discovery...{Style.RESET_ALL}")
+            with ThreadPoolExecutor(max_workers=self.threads) as executor:
+                futures = [executor.submit(ping_host, host) for host in all_hosts]
 
-            for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    live_hosts.add(result)
-                    ping_responsive.add(result)
-                    print(f"{Fore.GREEN}[+] Host discovered (ping): {result}{Style.RESET_ALL}")
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        live_hosts.add(result)
+                        ping_responsive.add(result)
+                        print(f"{Fore.GREEN}[+] Host discovered (ping): {result}{Style.RESET_ALL}")
 
-        # For hosts that didn't respond to ping, try port-based discovery
-        non_ping_hosts = [host for host in all_hosts if host not in ping_responsive]
+            # For hosts that didn't respond to ping, try port-based discovery
+            non_ping_hosts = [host for host in all_hosts if host not in ping_responsive]
+        else:
+            print(f"{Fore.CYAN}[*] Ping discovery disabled (use --ping to enable){Style.RESET_ALL}")
+            # All hosts will be checked via port-based discovery
+            non_ping_hosts = all_hosts
 
+        # Phase 2: Port-based discovery
         if non_ping_hosts:
-            print(f"{Fore.CYAN}[*] Phase 2: Port-based discovery for {len(non_ping_hosts)} non-ping responsive hosts...{Style.RESET_ALL}")
+            phase_num = 2 if self.enable_ping else 1
+            print(f"{Fore.CYAN}[*] Phase {phase_num}: Port-based discovery for {len(non_ping_hosts)} hosts...{Style.RESET_ALL}")
             with ThreadPoolExecutor(max_workers=min(self.threads, 20)) as executor:
                 futures = [executor.submit(port_discovery, host) for host in non_ping_hosts]
 
@@ -186,7 +196,10 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
         self.results["hosts"] = {host: {"status": "up", "ports": {}} for host in live_hosts_list}
         self.results["unresponsive_hosts"] = unresponsive_count
         print(f"\n{Fore.CYAN}[*] Host discovery completed. Found {len(live_hosts_list)} live hosts from {len(all_hosts)} total hosts.{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}[*] Ping responsive: {len(ping_responsive)}, Port responsive: {len(live_hosts_list) - len(ping_responsive)}{Style.RESET_ALL}")
+        if self.enable_ping:
+            print(f"{Fore.CYAN}[*] Ping responsive: {len(ping_responsive)}, Port responsive: {len(live_hosts_list) - len(ping_responsive)}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.CYAN}[*] All hosts discovered via port-based detection (ping disabled){Style.RESET_ALL}")
 
         return live_hosts_list
 
@@ -925,6 +938,10 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 
         self.print_banner()
 
+        # Inform user about ping setting
+        if not self.enable_ping and self.discovery_mode == "active":
+            print(f"{Fore.YELLOW}[!] Ping is disabled by default. Use --ping to enable ICMP ping discovery.{Style.RESET_ALL}")
+
         if self.discovery_mode == "passive":
             # Passive discovery mode - use passive techniques only
             discovered_hosts = self.passive_discovery()
@@ -1017,10 +1034,11 @@ def main():
 Examples:
   python pdive.py -t 192.168.1.0/24
   python pdive.py -t 10.0.0.1 --nmap
+  python pdive.py -t 192.168.1.0/24 --ping
   python pdive.py -f targets.txt -o /tmp/scan_results -T 100
   python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
   python pdive.py -t example.com -m passive
-  python pdive.py -t testphp.vulnweb.com -m active --nmap
+  python pdive.py -t testphp.vulnweb.com -m active --nmap --ping
         """
     )
 
@@ -1038,6 +1056,8 @@ Examples:
                        help='Discovery mode: active (default) or passive')
     parser.add_argument('--nmap', action='store_true',
                        help='Enable detailed Nmap scanning (Active mode only)')
+    parser.add_argument('--ping', action='store_true',
+                       help='Enable ICMP ping for host discovery (disabled by default for stealth)')
     parser.add_argument('--version', action='version', version='PDIve 1.3')
 
     args = parser.parse_args()
@@ -1071,7 +1091,7 @@ Examples:
         print("Scan aborted.")
         sys.exit(1)
 
-    pdive = PDIve(targets, args.output, args.threads, args.mode)
+    pdive = PDIve(targets, args.output, args.threads, args.mode, enable_ping=args.ping)
     pdive.run_scan(enable_nmap=args.nmap)
 
 
