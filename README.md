@@ -1,10 +1,10 @@
-# PDIve
+# PDIve (Python Edition)
 
 **Dive deep into the network**
 
 An automated penetration testing discovery tool designed for authorized security assessments and defensive testing, featuring both passive and active reconnaissance capabilities.
 
-## ⚠️ Legal Notice
+## Legal Notice
 
 **FOR AUTHORIZED SECURITY TESTING ONLY**
 
@@ -16,13 +16,13 @@ This tool is intended for legitimate security professionals, penetration testers
 
 PDIve now supports two distinct reconnaissance modes:
 
-#### 🔍 **Passive Discovery Mode**
+#### **Passive Discovery Mode**
 - **Amass Integration**: Passive subdomain enumeration using OWASP Amass only
 - **OSINT-focused**: No active network scanning or probing
 - **Stealth Operation**: Minimal network footprint for covert reconnaissance
 - **Pure Passive**: Uses only amass for subdomain discovery
 
-#### ⚡ **Active Discovery Mode** (Default)
+#### **Active Discovery Mode** (Default)
 - **Phase 1**: Passive subdomain discovery with Amass
 - **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
@@ -50,22 +50,16 @@ PDIve now supports two distinct reconnaissance modes:
 1. **Install System Dependencies**:
 
    **Ubuntu/Debian/Kali:**
-   ```bash
    sudo apt update
    sudo apt install python3 python3-pip amass masscan nmap python3-nmap
-   ```
 
    **Manual Installation:**
-   ```bash
    # Amass - https://github.com/OWASP/Amass
    # Masscan - https://github.com/robertdavidgraham/masscan
    # Nmap - https://nmap.org/download.html
-   ```
 
 2. **Install Python Dependencies**:
-   ```bash
    pip install -r requirements.txt
-   ```
 
 ## Usage
 
@@ -73,7 +67,6 @@ PDIve now supports two distinct reconnaissance modes:
 
 Perfect for stealth reconnaissance and OSINT gathering:
 
-```bash
 # Basic passive discovery
 python pdive.py -t example.com -m passive
 
@@ -82,13 +75,11 @@ python pdive.py -f domains.txt -m passive
 
 # Multiple domains
 python pdive.py -t "example.com,testsite.com" -m passive
-```
 
 ### Active Discovery Mode
 
 Traditional network scanning and analysis:
 
-```bash
 # Basic active scan (port-based discovery only, no ping)
 python pdive.py -t 192.168.1.0/24
 
@@ -103,17 +94,13 @@ python pdive.py -t 192.168.1.0/24 --ping
 
 # Multiple targets active scan
 python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
-```
 
 ### Mixed Examples
-
-```bash
 # Scan from file with custom settings
 python pdive.py -f targets.txt -o /tmp/scan_results -T 100
 
 # Domain passive discovery with custom output
 python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
-```
 
 ### Command Line Options
 
@@ -139,7 +126,6 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 
 When using the `-f` option, create a text file with one target per line:
 
-```
 # Comments start with #
 # For passive mode, use domains:
 example.com
@@ -150,7 +136,6 @@ company.net
 192.168.1.0/24
 10.0.0.1
 server.local
-```
 
 ## Discovery Methods
 
@@ -185,7 +170,7 @@ server.local
 ### Passive Mode Reports
 
 **Host List Report (`pdive_passive_TIMESTAMP.txt`)**:
-```
+
 PDIVE PASSIVE DISCOVERY REPORT
 ============================================================
 
@@ -201,7 +186,6 @@ DISCOVERED HOSTS
   • api.example.com
   • mail.example.com
   • www.example.com
-```
 
 **CSV Host List (`pdive_hosts_TIMESTAMP.csv`)**:
 - Simple format: Host, Discovery_Method, Scan_Time
@@ -264,18 +248,18 @@ DISCOVERED HOSTS
 ## Use Cases
 
 ### Passive Mode - Perfect For:
-- 🕵️ **OSINT Collection**: Gathering public information without direct contact
-- 🔒 **Stealth Reconnaissance**: Minimal network footprint operations
-- 📊 **Domain Analysis**: Understanding an organization's digital footprint
-- 🛡️ **Defensive Assessment**: Identifying your own exposed assets
-- 📋 **Compliance Auditing**: Asset discovery for security compliance
+- **OSINT Collection**: Gathering public information without direct contact
+- **Stealth Reconnaissance**: Minimal network footprint operations
+- **Domain Analysis**: Understanding an organization's digital footprint
+- **Defensive Assessment**: Identifying your own exposed assets
+- **Compliance Auditing**: Asset discovery for security compliance
 
 ### Active Mode - Ideal For:
-- 🎯 **Penetration Testing**: Authorized security assessments
-- 🔍 **Vulnerability Assessment**: Identifying open services and versions
-- 🖥️ **Network Discovery**: Mapping internal network topology
-- 🛠️ **Infrastructure Analysis**: Detailed service enumeration
-- 📈 **Security Monitoring**: Regular network security checks
+- **Penetration Testing**: Authorized security assessments
+- **Vulnerability Assessment**: Identifying open services and versions
+- **Network Discovery**: Mapping internal network topology
+- **Infrastructure Analysis**: Detailed service enumeration
+- **Security Monitoring**: Regular network security checks
 
 ## Troubleshooting
 
@@ -284,18 +268,14 @@ DISCOVERED HOSTS
 PDIve v1.3 includes intelligent masscan sudo handling. Masscan requires root privileges for raw socket access:
 
 **Option 1: Run PDIve with sudo**
-```bash
 sudo python3 pdive.py -t target.com
-```
 
 **Option 2: Configure passwordless sudo for masscan**
-```bash
 # Add to /etc/sudoers (use visudo)
 username ALL=(ALL) NOPASSWD: /usr/bin/masscan
 
 # Test configuration
 sudo -n masscan --help
-```
 
 **Option 3: Let PDIve fallback to basic port scanning**
 - PDIve automatically detects sudo availability
@@ -305,8 +285,6 @@ sudo -n masscan --help
 ### Virtual Environment Setup
 
 If you encounter "externally-managed-environment" errors:
-
-```bash
 # Create and activate virtual environment
 python3 -m venv recon_env
 source recon_env/bin/activate  # Linux/Mac
@@ -318,13 +296,11 @@ pip install -r requirements.txt
 
 # Run PDIve
 python pdive.py -t your_target
-```
 
 ### Missing System Packages
 
 On Debian/Ubuntu/Kali systems:
 
-```bash
 # Install all required packages (including python3-nmap)
 sudo apt update
 sudo apt install python3-venv python3-pip amass masscan nmap python3-nmap
@@ -336,13 +312,11 @@ pip install -r requirements.txt
 
 # Verify nmap module is available
 python3 -c "import nmap; print('nmap module available')"
-```
 
 ### Nmap Module Not Available
 
 If you see "Note: nmap module not available, nmap scanning disabled":
 
-```bash
 # Install python3-nmap system package (recommended for Kali/Debian/Ubuntu)
 sudo apt install python3-nmap
 
@@ -353,20 +327,17 @@ python3 -c "import nmap; print('nmap module available')"
 python3 -m venv recon_env
 source recon_env/bin/activate
 pip install python-nmap
-```
 
 ### Amass Configuration Issues
 
 If amass fails or times out:
 
-```bash
 # Test amass manually
 amass enum -d example.com -passive
 
 # Check amass installation
 which amass
 amass --help
-```
 
 ### Common Issues
 
@@ -379,13 +350,11 @@ amass --help
 ## Examples
 
 ### Comprehensive Passive Reconnaissance
-```bash
 # Discover all subdomains for multiple organizations
 echo -e "example.com\ncompany.org\ntarget.net" > domains.txt
 python pdive.py -f domains.txt -m passive -o passive_results
 
 # Results show all discovered subdomains from multiple sources
-```
 
 ### Active Network Assessment
 ```bash
@@ -402,13 +371,11 @@ python pdive.py -t 192.168.0.0/16 -m active --nmap -o internal_scan -T 200
 ```
 
 ### Hybrid Approach
-```bash
 # 1. Start with passive discovery
 python pdive.py -t company.com -m passive -o recon_phase1
 
 # 2. Use discovered hosts for targeted active scanning
 python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
-```
 
 ## Security Considerations
 
