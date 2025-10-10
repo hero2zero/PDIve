@@ -1,10 +1,10 @@
-# PDIve (Python Edition)
+# PDIve
 
 **Dive deep into the network**
 
 An automated penetration testing discovery tool designed for authorized security assessments and defensive testing, featuring both passive and active reconnaissance capabilities.
 
-## Legal Notice
+## ⚠️ Legal Notice
 
 **FOR AUTHORIZED SECURITY TESTING ONLY**
 
@@ -16,18 +16,19 @@ This tool is intended for legitimate security professionals, penetration testers
 
 PDIve now supports two distinct reconnaissance modes:
 
-#### **Passive Discovery Mode**
+#### 🔍 **Passive Discovery Mode**
 - **Amass Integration**: Passive subdomain enumeration using OWASP Amass only
 - **OSINT-focused**: No active network scanning or probing
 - **Stealth Operation**: Minimal network footprint for covert reconnaissance
 - **Pure Passive**: Uses only amass for subdomain discovery
 
-#### **Active Discovery Mode** (Default)
+#### ⚡ **Active Discovery Mode** (Default)
 - **Phase 1**: Passive subdomain discovery with Amass
 - **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
-- **Phase 4**: Detailed service enumeration with Nmap (on masscan results)
+- **Phase 4**: Service enumeration (basic, nmap, or skip with --masscan)
 - **Stealth by Default**: ICMP ping disabled by default; use `--ping` to enable
+- **Speed Options**: Use `--masscan` for fastest scans (skip service enumeration) or `--nmap` for detailed analysis
 - **Comprehensive Analysis**: Full end-to-end reconnaissance workflow
 
 ### General Features
@@ -91,8 +92,11 @@ Traditional network scanning and analysis:
 # Basic active scan (port-based discovery only, no ping)
 python pdive.py -t 192.168.1.0/24
 
-# Active scan with nmap integration
+# Active scan with nmap integration (detailed service enumeration)
 python pdive.py -t 10.0.0.1 --nmap
+
+# Fast scan with masscan only (no service enumeration, maximum speed)
+python pdive.py -t 192.168.1.0/24 --masscan
 
 # Active scan with ping enabled (less stealthy)
 python pdive.py -t 192.168.1.0/24 --ping
@@ -118,15 +122,18 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `-m, --mode`: Discovery mode - `active` (default) or `passive`
 - `-o, --output`: Output directory (default: pdive_output)
 - `-T, --threads`: Number of threads (default: 50)
-- `--nmap`: Enable detailed Nmap scanning (**Active mode only**)
+- `--nmap`: Enable detailed Nmap scanning after masscan (**Active mode only**)
+- `--masscan`: Use only masscan for fast port scanning, skip service enumeration (**Active mode only, for maximum speed**)
 - `--ping`: Enable ICMP ping for host discovery (**disabled by default for stealth**)
 - `--version`: Show version information
 
 **Notes**:
 - Either `-t` or `-f` is required, but not both
-- `--nmap` flag cannot be used with passive mode
+- `--nmap` and `--masscan` flags cannot be used together (mutually exclusive)
+- `--nmap` and `--masscan` flags cannot be used with passive mode
 - `--ping` is disabled by default for stealth; port-based discovery is used instead
 - Passive mode works best with domain names, not IP addresses
+- Use `--masscan` when speed is critical and you only need open port information
 
 ### Target File Format
 
@@ -160,10 +167,18 @@ server.local
 2. **Phase 1 - Amass Discovery**: Passive subdomain enumeration using amass
 3. **Phase 2 - Host Discovery**: Port-based host detection (optional ICMP ping with --ping flag)
 4. **Phase 3 - Masscan**: Fast port scanning (1-65535) on all live hosts
-5. **Phase 4 - Nmap Enumeration**: Detailed service/version detection on masscan results
+5. **Phase 4 - Service Enumeration**: Choose your speed/detail tradeoff:
+   - **Default**: Basic service identification via HTTP headers and port mapping
+   - **--nmap flag**: Detailed service/version detection with Nmap
+   - **--masscan flag**: Skip service enumeration entirely for maximum speed
 6. **Report Generation**: Creates comprehensive scan reports
 
 **Note**: ICMP ping is disabled by default for stealth. PDIve uses port-based discovery (checks common ports like 80, 443, 22) to detect live hosts without generating ICMP traffic.
+
+**Speed vs Detail Trade-off**:
+- **Fastest**: Use `--masscan` to skip Phase 4 entirely (port discovery only)
+- **Balanced**: Default behavior with basic service identification
+- **Most Detailed**: Use `--nmap` for comprehensive service/version enumeration
 
 ## Output and Reports
 
@@ -374,10 +389,16 @@ python pdive.py -f domains.txt -m passive -o passive_results
 
 ### Active Network Assessment
 ```bash
+# Fast port scan for quick network mapping (no service enumeration)
+python pdive.py -t 192.168.0.0/16 --masscan -o quick_scan -T 200
+
+# Balanced scan with basic service identification (default)
+python pdive.py -t 192.168.0.0/16 -o balanced_scan -T 200
+
 # Full internal network scan with detailed analysis
 python pdive.py -t 192.168.0.0/16 -m active --nmap -o internal_scan -T 200
 
-# Results include live hosts, open ports, and service versions
+# Results include live hosts, open ports, and optionally service versions
 ```
 
 ### Hybrid Approach

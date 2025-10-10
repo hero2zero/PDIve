@@ -381,6 +381,9 @@ echo "y" | python3 pdive.py -t example.com -m passive -T 5
 # Test active mode with localhost (safe, no ping by default)
 echo "y" | python3 pdive.py -t 127.0.0.1 -T 5
 
+# Test fast masscan-only mode (no service enumeration)
+echo "y" | python3 pdive.py -t 127.0.0.1 -T 5 --masscan
+
 # Test active mode with ping enabled
 echo "y" | python3 pdive.py -t 127.0.0.1 -T 5 --ping
 

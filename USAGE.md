@@ -36,6 +36,9 @@ python3 pdive.py -t 192.168.1.0/24 --ping
 
 # Active discovery with detailed service detection
 python3 pdive.py -t 10.0.0.1 --nmap
+
+# Fast active discovery with masscan only (no service enumeration)
+python3 pdive.py -t 192.168.1.0/24 --masscan
 ```
 
 ## Discovery Modes
@@ -67,7 +70,7 @@ python3 pdive.py -t 10.0.0.1 --nmap
 1. **Phase 1**: Amass passive subdomain discovery
 2. **Phase 2**: Host discovery (port-based detection; optional ICMP ping with --ping)
 3. **Phase 3**: Fast port scanning with Masscan (1-65535)
-4. **Phase 4**: Service enumeration (basic or Nmap if enabled)
+4. **Phase 4**: Service enumeration (basic, Nmap if --nmap enabled, or skip if --masscan enabled)
 
 **Stealth Features**:
 - ICMP ping disabled by default to avoid IDS/IPS detection
@@ -93,7 +96,8 @@ python3 pdive.py -t 10.0.0.1 --nmap
 -m, --mode      # Discovery mode: active (default) or passive
 -o, --output    # Output directory (default: pdive_output)
 -T, --threads   # Number of threads (default: 50)
---nmap          # Enable detailed Nmap scanning (active mode only)
+--nmap          # Enable detailed Nmap scanning after masscan (active mode only)
+--masscan       # Use only masscan, skip service enumeration for speed (active mode only)
 --ping          # Enable ICMP ping for host discovery (disabled by default)
 --version       # Show version information
 ```
@@ -104,12 +108,15 @@ python3 pdive.py -t 10.0.0.1 --nmap
 python3 pdive.py -t target.com
 python3 pdive.py -f targets.txt
 python3 pdive.py -t "ip1,ip2,domain" -m active --nmap
+python3 pdive.py -t 192.168.1.0/24 --masscan  # Fast scan, no service enum
 python3 pdive.py -t 192.168.1.0/24 --ping --nmap
 python3 pdive.py -f domains.txt -m passive -o results
 
 # Invalid combinations
 python3 pdive.py -t target.com -f targets.txt  # Cannot use both -t and -f
 python3 pdive.py -t target.com -m passive --nmap  # Cannot use --nmap with passive mode
+python3 pdive.py -t target.com -m passive --masscan  # Cannot use --masscan with passive mode
+python3 pdive.py -t target.com --nmap --masscan  # Cannot use --nmap and --masscan together
 ```
 
 ## Target Formats
@@ -216,10 +223,13 @@ python3 pdive.py -f corp_domains.txt -m passive -o corporate_recon
 # Local network scan (no ICMP ping, port-based discovery only)
 python3 pdive.py -t 192.168.1.0/24
 
+# Fast scan with masscan only (maximum speed, no service enumeration)
+python3 pdive.py -t 192.168.1.0/24 --masscan
+
 # Local network scan with ICMP ping enabled
 python3 pdive.py -t 192.168.1.0/24 --ping
 
-# Single host comprehensive scan
+# Single host comprehensive scan with detailed service detection
 python3 pdive.py -t 10.0.0.1 --nmap
 
 # Mixed targets
@@ -257,13 +267,19 @@ python3 pdive.py -t "192.168.1.1,example.com,server.local"
 
 ### Network Segment Discovery
 ```bash
-# Scan multiple network segments (stealth mode, no ping)
+# Fast scan for quick mapping (masscan only, no service enum)
+python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" --masscan -T 100
+
+# Scan multiple network segments (stealth mode, no ping, basic service enum)
 python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" -T 100
 
 # DMZ network scan with detailed enumeration and ping
 sudo python3 pdive.py -t 172.16.0.0/24 --nmap --ping -o dmz_scan
 
-# Internal infrastructure discovery (stealth)
+# Internal infrastructure fast discovery (masscan only for speed)
+python3 pdive.py -t "192.168.0.0/16" --masscan -T 200 -o internal_quick
+
+# Internal infrastructure discovery (stealth, basic service enum)
 python3 pdive.py -t "192.168.0.0/16" -T 200 -o internal_recon
 
 # Internal scan with ICMP ping (when firewall allows)
@@ -285,13 +301,19 @@ python3 pdive.py -f discovered_hosts.txt -o phase2 --nmap
 
 ### Performance Optimization
 ```bash
-# High-speed scanning (requires powerful system)
+# Maximum speed scanning (masscan only, no service enum, requires powerful system)
+sudo python3 pdive.py -t 10.0.0.0/16 --masscan -T 500
+
+# High-speed scanning with basic service enum (requires powerful system)
 sudo python3 pdive.py -t 10.0.0.0/16 -T 500
 
 # Conservative scanning (slower networks/systems)
 python3 pdive.py -t target.com -T 10
 
-# Memory-efficient large network scan
+# Memory-efficient large network scan (fast, masscan only)
+python3 pdive.py -t 172.16.0.0/12 --masscan -T 50 -o large_scan
+
+# Memory-efficient large network scan with service enum
 python3 pdive.py -t 172.16.0.0/12 -T 50 -o large_scan
 ```
 
@@ -322,11 +344,14 @@ python3 pdive.py -t target.com -m passive -o step1_passive
 # Step 2: Active host discovery
 python3 pdive.py -t target.com -o step2_active
 
-# Step 3: Detailed service enumeration
-sudo python3 pdive.py -t target.com --nmap -o step3_detailed
+# Step 3: Fast port scanning (masscan only for speed)
+sudo python3 pdive.py -t target.com --masscan -o step3_fast
 
-# Step 4: Infrastructure mapping
-python3 pdive.py -t "target.com,target.org,target.net" --nmap -o step4_infrastructure
+# Step 4: Detailed service enumeration (add nmap)
+sudo python3 pdive.py -t target.com --nmap -o step4_detailed
+
+# Step 5: Infrastructure mapping
+python3 pdive.py -t "target.com,target.org,target.net" --nmap -o step5_infrastructure
 ```
 
 ### Custom Output Management
@@ -662,16 +687,19 @@ python3 pdive.py -t client.com -m passive -o "pentest/01-passive"
 # 2. Stealth active host discovery (no ping)
 python3 pdive.py -t client.com -o "pentest/02-stealth-discovery" -T 50
 
-# 3. Standard active discovery (with ping if allowed)
-python3 pdive.py -t client.com --ping -o "pentest/03-standard-discovery" -T 50
+# 3. Fast port mapping (masscan only, maximum speed)
+sudo python3 pdive.py -t client.com --masscan -T 100 -o "pentest/03-fast-ports"
 
-# 4. Detailed enumeration with nmap
-sudo python3 pdive.py -t client.com --nmap -o "pentest/04-detailed" -T 100
+# 4. Standard active discovery (with ping if allowed)
+python3 pdive.py -t client.com --ping -o "pentest/04-standard-discovery" -T 50
 
-# 5. Infrastructure mapping
-python3 pdive.py -t "client.com,client.org,client.net" --nmap --ping -o "pentest/05-infrastructure"
+# 5. Detailed enumeration with nmap
+sudo python3 pdive.py -t client.com --nmap -o "pentest/05-detailed" -T 100
 
-# 6. Analysis and reporting
+# 6. Infrastructure mapping
+python3 pdive.py -t "client.com,client.org,client.net" --nmap --ping -o "pentest/06-infrastructure"
+
+# 7. Analysis and reporting
 grep -r "ssh\|rdp\|ftp" pentest/*/
 ```
 

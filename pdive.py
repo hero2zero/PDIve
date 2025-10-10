@@ -930,7 +930,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         print(f"  - Host List Report: {txt_file}")
         print(f"  - CSV Host List: {csv_file}")
 
-    def run_scan(self, enable_nmap=False):
+    def run_scan(self, enable_nmap=False, masscan_only=False):
         """Execute complete reconnaissance scan"""
         if not self.validate_targets():
             print(f"{Fore.RED}[-] No valid targets found{Style.RESET_ALL}")
@@ -989,7 +989,11 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             # Use masscan for fast port discovery
             masscan_results = self.masscan_scan(list(all_discovered_hosts))
 
-            if enable_nmap and masscan_results:
+            if masscan_only:
+                # Masscan-only mode: skip service enumeration entirely for maximum speed
+                print(f"\n{Fore.YELLOW}[*] Masscan-only mode: Skipping service enumeration for speed{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}[+] Fast port scan completed. Use --nmap for detailed service enumeration.{Style.RESET_ALL}")
+            elif enable_nmap and masscan_results:
                 print(f"\n{Fore.CYAN}[*] Phase 4: Detailed service enumeration with nmap{Style.RESET_ALL}")
                 self.nmap_scan(masscan_results)
             elif masscan_results:
@@ -1034,6 +1038,7 @@ def main():
 Examples:
   python pdive.py -t 192.168.1.0/24
   python pdive.py -t 10.0.0.1 --nmap
+  python pdive.py -t 192.168.1.0/24 --masscan (fast scan, no service enumeration)
   python pdive.py -t 192.168.1.0/24 --ping
   python pdive.py -f targets.txt -o /tmp/scan_results -T 100
   python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
@@ -1055,16 +1060,27 @@ Examples:
     parser.add_argument('-m', '--mode', choices=['active', 'passive'], default='active',
                        help='Discovery mode: active (default) or passive')
     parser.add_argument('--nmap', action='store_true',
-                       help='Enable detailed Nmap scanning (Active mode only)')
+                       help='Enable detailed Nmap scanning after masscan (Active mode only)')
+    parser.add_argument('--masscan', action='store_true',
+                       help='Use only masscan for fast port scanning without nmap service enumeration (Active mode only)')
     parser.add_argument('--ping', action='store_true',
                        help='Enable ICMP ping for host discovery (disabled by default for stealth)')
     parser.add_argument('--version', action='version', version='PDIve 1.3')
 
     args = parser.parse_args()
 
-    # Validate mode and nmap combination
+    # Validate mode and scan option combinations
     if args.mode == 'passive' and args.nmap:
         print(f"{Fore.RED}[-] Error: --nmap flag is not compatible with passive mode{Style.RESET_ALL}")
+        sys.exit(1)
+
+    if args.mode == 'passive' and args.masscan:
+        print(f"{Fore.RED}[-] Error: --masscan flag is not compatible with passive mode{Style.RESET_ALL}")
+        sys.exit(1)
+
+    if args.nmap and args.masscan:
+        print(f"{Fore.RED}[-] Error: --nmap and --masscan flags cannot be used together{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[*] Use --masscan for fast masscan-only scanning, or --nmap for masscan followed by nmap service enumeration{Style.RESET_ALL}")
         sys.exit(1)
 
     if args.file:
@@ -1092,7 +1108,7 @@ Examples:
         sys.exit(1)
 
     pdive = PDIve(targets, args.output, args.threads, args.mode, enable_ping=args.ping)
-    pdive.run_scan(enable_nmap=args.nmap)
+    pdive.run_scan(enable_nmap=args.nmap, masscan_only=args.masscan)
 
 
 if __name__ == "__main__":
