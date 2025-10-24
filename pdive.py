@@ -52,7 +52,7 @@ class PDIve:
             "scan_info": {
                 "targets": self.targets,
                 "start_time": datetime.now().isoformat(),
-                "scanner": "PDIve v1.3",
+                "scanner": "PDIve v1.3.2",
                 "discovery_mode": self.discovery_mode
             },
             "hosts": {},
@@ -478,7 +478,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             # Query crt.sh API
             url = f'https://crt.sh/?q=%.{domain}&output=json'
-            response = requests.get(url, timeout=30, headers={'User-Agent': 'PDIve/1.3'})
+            response = requests.get(url, timeout=30, headers={'User-Agent': 'PDIve/1.3.2'})
 
             if response.status_code == 200:
                 try:
@@ -570,6 +570,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                 'sudo', 'masscan',
                 '-iL', target_file_path,
                 '-p', port_range,
+                '-Pn',  # Skip ping check - scan all hosts regardless of ping response
                 '--rate', '1000',
                 '--output-format', 'list',
                 '--output-filename', '-'
@@ -714,7 +715,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
                 try:
                     response = requests.get(url, timeout=5, verify=False,
-                                          headers={'User-Agent': 'PDIve/1.3'})
+                                          headers={'User-Agent': 'PDIve/1.3.2'})
                     server_header = response.headers.get('Server', 'Unknown')
                     service_info = f"{service} ({server_header})"
                 except:
@@ -1040,10 +1041,10 @@ Examples:
   python pdive.py -t 10.0.0.1 --nmap
   python pdive.py -t 192.168.1.0/24 --masscan (fast scan, no service enumeration)
   python pdive.py -t 192.168.1.0/24 --ping
-  python pdive.py -f targets.txt -o /tmp/scan_results -T 100
+  python pdive.py -f targets.txt -o /tmp/scan_results -T 100 (use 100 threads)
   python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
   python pdive.py -t example.com -m passive
-  python pdive.py -t testphp.vulnweb.com -m active --nmap --ping
+  python pdive.py -t testphp.vulnweb.com -m active --nmap --ping -T 50 (throttle with 50 threads)
         """
     )
 
@@ -1055,8 +1056,8 @@ Examples:
 
     parser.add_argument('-o', '--output', default='pdive_output',
                        help='Output directory (default: pdive_output)')
-    parser.add_argument('-T', '--threads', type=int, default=50,
-                       help='Number of threads (default: 50)')
+    parser.add_argument('-T', '--threads', type=int, default=5,
+                       help='Number of threads for scan throttling (default: 5)')
     parser.add_argument('-m', '--mode', choices=['active', 'passive'], default='active',
                        help='Discovery mode: active (default) or passive')
     parser.add_argument('--nmap', action='store_true',
@@ -1065,7 +1066,7 @@ Examples:
                        help='Use only masscan for fast port scanning without nmap service enumeration (Active mode only)')
     parser.add_argument('--ping', action='store_true',
                        help='Enable ICMP ping for host discovery (disabled by default for stealth)')
-    parser.add_argument('--version', action='version', version='PDIve 1.3')
+    parser.add_argument('--version', action='version', version='PDIve 1.3.2')
 
     args = parser.parse_args()
 
