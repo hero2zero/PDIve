@@ -519,8 +519,14 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         import shutil
         import json
 
-        # Check if masscan is available
-        masscan_path = shutil.which('masscan')
+        # Check if masscan is available - try custom path first, then PATH
+        masscan_path = None
+        custom_masscan_path = '/home/james/go/bin/masscan'
+        if os.path.exists(custom_masscan_path):
+            masscan_path = custom_masscan_path
+        else:
+            masscan_path = shutil.which('masscan')
+
         if not masscan_path:
             print(f"{Fore.RED}[-] Masscan not found in PATH, falling back to basic port scan{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}[*] Install masscan from: https://github.com/robertdavidgraham/masscan{Style.RESET_ALL}")
@@ -528,24 +534,20 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             self.port_scan(hosts)
             return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
 
-        # Check if we can run masscan with sudo (test sudo access)
-        try:
-            print(f"{Fore.CYAN}[*] Checking sudo access for masscan...{Style.RESET_ALL}")
-            # Try to run masscan with --help to test sudo access without actually scanning
-            test_cmd = ['sudo', '-n', 'masscan', '--help']
-            test_result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=10)
+        # Check if we're already running as root or can run masscan
+        is_root = os.geteuid() == 0
+        use_sudo = False
 
-            if test_result.returncode != 0:
-                print(f"{Fore.YELLOW}[!] Masscan requires sudo privileges but no passwordless sudo access detected{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}[*] Run with 'sudo python3 pdive.py' or configure passwordless sudo for masscan{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}[*] Falling back to basic port scan...{Style.RESET_ALL}")
-                self.port_scan(hosts)
-                return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
-            else:
-                print(f"{Fore.GREEN}[+] Sudo access confirmed for masscan{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}[*] Checking masscan privileges...{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}[*] Running as root: {is_root} (UID: {os.getuid()}, EUID: {os.geteuid()}){Style.RESET_ALL}")
 
-        except (subprocess.TimeoutExpired, Exception) as e:
-            print(f"{Fore.YELLOW}[!] Could not verify sudo access for masscan: {e}{Style.RESET_ALL}")
+        # If we're already running as root, no need for sudo
+        if is_root:
+            print(f"{Fore.GREEN}[+] Running as root - no sudo needed{Style.RESET_ALL}")
+            use_sudo = False
+        else:
+            print(f"{Fore.YELLOW}[!] Not running as root - masscan will need sudo or capabilities{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[*] Please run with 'sudo python3 pdive.py' or set CAP_NET_RAW on masscan{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}[*] Falling back to basic port scan...{Style.RESET_ALL}")
             self.port_scan(hosts)
             return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
@@ -566,15 +568,27 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             print(f"{Fore.CYAN}[*] Running masscan on {len(hosts)} hosts...{Style.RESET_ALL}")
 
             # Run masscan with output in list format (requires sudo for raw sockets)
-            cmd = [
-                'sudo', 'masscan',
-                '-iL', target_file_path,
-                '-p', port_range,
-                '-Pn',  # Skip ping check - scan all hosts regardless of ping response
-                '--rate', '1000',
-                '--output-format', 'list',
-                '--output-filename', '-'
-            ]
+            # Use sudo only if needed
+            if use_sudo:
+                cmd = [
+                    'sudo', masscan_path,
+                    '-iL', target_file_path,
+                    '-p', port_range,
+                    '-Pn',  # Skip ping check - scan all hosts regardless of ping response
+                    '--rate', '1000',
+                    '--output-format', 'list',
+                    '--output-filename', '-'
+                ]
+            else:
+                cmd = [
+                    masscan_path,
+                    '-iL', target_file_path,
+                    '-p', port_range,
+                    '-Pn',  # Skip ping check - scan all hosts regardless of ping response
+                    '--rate', '1000',
+                    '--output-format', 'list',
+                    '--output-filename', '-'
+                ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
