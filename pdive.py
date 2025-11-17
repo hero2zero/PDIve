@@ -559,13 +559,41 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         try:
             # Create a temporary target file for masscan
+            # Masscan requires IP addresses, so resolve hostnames first
             import tempfile
+            resolved_hosts = []
+            ip_to_hostname = {}  # Map IPs back to original hostnames
+
+            print(f"{Fore.CYAN}[*] Resolving hostnames to IP addresses for masscan...{Style.RESET_ALL}")
+            for host in hosts:
+                try:
+                    # Check if it's already an IP address
+                    ipaddress.ip_address(host)
+                    resolved_hosts.append(host)
+                    ip_to_hostname[host] = host
+                    print(f"{Fore.GREEN}[+] Using IP: {host}{Style.RESET_ALL}")
+                except ValueError:
+                    # It's a hostname, resolve it
+                    try:
+                        ip = socket.gethostbyname(host)
+                        resolved_hosts.append(ip)
+                        ip_to_hostname[ip] = host  # Remember the original hostname
+                        print(f"{Fore.GREEN}[+] Resolved {host} -> {ip}{Style.RESET_ALL}")
+                    except socket.gaierror:
+                        print(f"{Fore.YELLOW}[!] Could not resolve {host}, skipping{Style.RESET_ALL}")
+
+            if not resolved_hosts:
+                print(f"{Fore.RED}[-] No valid IP addresses to scan{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}[*] Falling back to basic port scan...{Style.RESET_ALL}")
+                self.port_scan(hosts)
+                return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
+
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as target_file:
-                for host in hosts:
-                    target_file.write(f"{host}\n")
+                for ip in resolved_hosts:
+                    target_file.write(f"{ip}\n")
                 target_file_path = target_file.name
 
-            print(f"{Fore.CYAN}[*] Running masscan on {len(hosts)} hosts...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}[*] Running masscan on {len(resolved_hosts)} IP addresses...{Style.RESET_ALL}")
 
             # Run masscan with output in list format (requires sudo for raw sockets)
             # Use sudo only if needed
@@ -603,13 +631,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                         parts = line.split()
                         if len(parts) >= 4 and parts[0] == 'open' and parts[1] == 'tcp':
                             port = parts[2]
-                            host = parts[3]
+                            ip = parts[3]
 
-                            if host not in masscan_results:
-                                masscan_results[host] = {}
-                            masscan_results[host][port] = {"state": "open", "service": ""}
+                            # Map IP back to original hostname if available
+                            original_host = ip_to_hostname.get(ip, ip)
 
-                            print(f"{Fore.GREEN}[+] Masscan found: {host}:{port}{Style.RESET_ALL}")
+                            if original_host not in masscan_results:
+                                masscan_results[original_host] = {}
+                            masscan_results[original_host][port] = {"state": "open", "service": ""}
+
+                            print(f"{Fore.GREEN}[+] Masscan found: {original_host}:{port}{Style.RESET_ALL}")
 
                 print(f"\n{Fore.CYAN}[*] Masscan completed. Found ports on {len(masscan_results)} hosts.{Style.RESET_ALL}")
 
