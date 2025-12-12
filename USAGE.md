@@ -47,12 +47,14 @@ python3 pdive.py -t 192.168.1.0/24 --masscan
 
 **Purpose**: Stealth reconnaissance using only public sources
 **Network Impact**: Zero direct contact with target
-**Duration**: 30-120 seconds per domain
+**Duration**: Variable (30 seconds to several minutes depending on domain size)
+**Progress**: Real-time spinning indicator shows scan is active
 
 **Workflow**:
-1. OWASP Amass passive subdomain enumeration
+1. OWASP Amass passive subdomain enumeration (no timeout)
 2. DNS and certificate transparency log analysis
 3. No active network scanning or probing
+4. Visual progress feedback during execution
 
 **Best For**:
 - Initial reconnaissance
@@ -185,6 +187,9 @@ python3 pdive.py -f domains.txt -m passive -o passive_results
 ```
 [+] Starting Passive Discovery (amass only)...
 [*] Running amass on example.com...
+[*] Amass scan started (no timeout - will run until completion)
+[*] Amass scan in progress /  (spinning indicator)
+
 [+] Amass discovered: mail.example.com
 [+] Amass discovered: www.example.com
 [+] Amass discovered: api.example.com
@@ -571,9 +576,10 @@ sudo visudo
 
 #### Amass Configuration Issues
 ```bash
-# Issue: Amass timeout or no results
-# Debug: Test amass manually
-amass enum -d example.com -passive -v
+# Issue: Amass taking a long time
+# Note: As of v1.3.3, amass has no timeout and will run until completion
+# Watch the progress indicator (spinning |/-\) to confirm scan is active
+# Large domains may take several minutes to enumerate
 
 # Issue: Amass not found
 which amass
@@ -581,6 +587,9 @@ sudo apt install amass  # Or manual installation
 
 # Issue: Amass configuration errors
 rm -rf ~/.config/amass  # Reset configuration
+
+# Debug: Test amass manually
+amass enum -d example.com -v
 ```
 
 #### Performance Issues
@@ -596,6 +605,11 @@ python3 pdive.py -t 192.168.1.0/25 -T 20  # Instead of /24
 # Issue: Network timeouts
 # Solution: Conservative threading
 python3 pdive.py -t target.com -T 5
+
+# Issue: Amass appears to hang
+# Solution: Check progress indicator - if spinning, scan is active
+# Large domains can take 5-10+ minutes for comprehensive enumeration
+# No timeout enforced as of v1.3.3
 ```
 
 #### Output and Permission Issues

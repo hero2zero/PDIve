@@ -52,7 +52,7 @@ class PDIve:
             "scan_info": {
                 "targets": self.targets,
                 "start_time": datetime.now().isoformat(),
-                "scanner": "PDIve v1.3.2",
+                "scanner": "PDIve v1.3.3",
                 "discovery_mode": self.discovery_mode
             },
             "hosts": {},
@@ -87,6 +87,15 @@ Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 """
         print(banner)
+
+    def _show_progress(self, stop_event, message):
+        """Display a progress indicator while a long-running task is executing"""
+        spinner = ['|', '/', '-', '\\']
+        idx = 0
+        while not stop_event.is_set():
+            print(f"\r{Fore.CYAN}[*] {message} {spinner[idx % len(spinner)]}{Style.RESET_ALL}", end='', flush=True)
+            idx += 1
+            time.sleep(0.2)
 
     def validate_targets(self):
         """Validate if all targets are valid IP addresses, network ranges, or hostnames"""
@@ -332,8 +341,15 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             import subprocess
             import shutil
 
-            # Try using shutil.which first (more reliable)
-            amass_path = shutil.which('amass')
+            # Try Go-installed amass first (to avoid broken snap version), then check PATH
+            amass_path = None
+            go_amass_path = '/home/james/go/bin/amass'
+            if os.path.exists(go_amass_path):
+                amass_path = go_amass_path
+            else:
+                # Try using shutil.which as fallback
+                amass_path = shutil.which('amass')
+
             if not amass_path:
                 # Fallback to 'which' command
                 try:
@@ -342,14 +358,30 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                         print(f"{Fore.RED}[-] Amass not found in PATH, skipping amass discovery{Style.RESET_ALL}")
                         print(f"{Fore.YELLOW}[*] Install amass from: https://github.com/OWASP/Amass{Style.RESET_ALL}")
                         return discovered_hosts
+                    amass_path = result.stdout.strip()
                 except FileNotFoundError:
                     print(f"{Fore.RED}[-] Amass not found, skipping amass discovery{Style.RESET_ALL}")
                     print(f"{Fore.YELLOW}[*] Install amass from: https://github.com/OWASP/Amass{Style.RESET_ALL}")
                     return discovered_hosts
 
-            # Run amass with specified options (passive mode only)
-            cmd = ['amass', 'enum', '-d', domain, '-passive']
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            # Run amass with specified options (passive mode is default in v4+)
+            cmd = [amass_path, 'enum', '-d', domain]
+
+            # Start progress indicator in a separate thread
+            progress_stop = threading.Event()
+            progress_thread = threading.Thread(target=self._show_progress, args=(progress_stop, "Amass scan in progress"))
+            progress_thread.daemon = True
+            progress_thread.start()
+
+            print(f"{Fore.YELLOW}[*] Amass scan started (no timeout - will run until completion){Style.RESET_ALL}")
+
+            # Run amass without timeout
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            # Stop progress indicator
+            progress_stop.set()
+            progress_thread.join()
+            print()  # New line after progress indicator
 
             if result.returncode == 0:
                 output_lines = result.stdout.strip().split('\n')
@@ -372,8 +404,6 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
                 print(f"{Fore.YELLOW}[*] Continuing with other passive discovery methods...{Style.RESET_ALL}")
 
-        except subprocess.TimeoutExpired:
-            print(f"{Fore.RED}[-] Amass timeout for domain {domain}{Style.RESET_ALL}")
         except Exception as e:
             print(f"{Fore.RED}[-] Amass error for {domain}: {e}{Style.RESET_ALL}")
 
@@ -1010,10 +1040,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         else:
             # Active discovery mode - amass -> host discovery -> masscan -> nmap
             print(f"\n{Fore.YELLOW}[+] Starting Active Discovery Mode{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}[*] Phase 1: Passive subdomain discovery with amass{Style.RESET_ALL}")
 
-            # First, run amass to discover subdomains
-            amass_hosts = self.passive_discovery()
+            # Only run amass if neither --nmap nor --masscan flags are set
+            # When these flags are set, we want ONLY port scanning (masscan/nmap)
+            if not enable_nmap and not masscan_only:
+                print(f"{Fore.CYAN}[*] Phase 1: Passive subdomain discovery with amass{Style.RESET_ALL}")
+                # First, run amass to discover subdomains
+                amass_hosts = self.passive_discovery()
+            else:
+                print(f"{Fore.CYAN}[*] Phase 1: Skipping amass (running in port-scan-only mode){Style.RESET_ALL}")
+                amass_hosts = []
 
             # Then do traditional host discovery
             print(f"\n{Fore.CYAN}[*] Phase 2: Host discovery and connectivity check{Style.RESET_ALL}")
@@ -1111,7 +1147,7 @@ Examples:
                        help='Use only masscan for fast port scanning without nmap service enumeration (Active mode only)')
     parser.add_argument('--ping', action='store_true',
                        help='Enable ICMP ping for host discovery (disabled by default for stealth)')
-    parser.add_argument('--version', action='version', version='PDIve 1.3.2')
+    parser.add_argument('--version', action='version', version='PDIve 1.3.3')
 
     args = parser.parse_args()
 

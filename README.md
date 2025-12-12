@@ -1,10 +1,10 @@
-# PDIve (Python Edition)
+# PDIve (Python Version)
 
 **Dive deep into the network**
 
 An automated penetration testing discovery tool designed for authorized security assessments and defensive testing, featuring both passive and active reconnaissance capabilities.
 
-## Legal Notice
+## ⚠️ Legal Notice
 
 **FOR AUTHORIZED SECURITY TESTING ONLY**
 
@@ -16,13 +16,13 @@ This tool is intended for legitimate security professionals, penetration testers
 
 PDIve now supports two distinct reconnaissance modes:
 
-#### **Passive Discovery Mode**
+#### 🔍 **Passive Discovery Mode**
 - **Amass Integration**: Passive subdomain enumeration using OWASP Amass only
 - **OSINT-focused**: No active network scanning or probing
 - **Stealth Operation**: Minimal network footprint for covert reconnaissance
 - **Pure Passive**: Uses only amass for subdomain discovery
 
-#### **Active Discovery Mode** (Default)
+#### ⚡ **Active Discovery Mode** (Default)
 - **Phase 1**: Passive subdomain discovery with Amass
 - **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
@@ -33,9 +33,10 @@ PDIve now supports two distinct reconnaissance modes:
 
 ### General Features
 - **Comprehensive Reporting**: Specialized reports for each discovery mode
-- **User-friendly CLI**: Color-coded output and progress indicators
+- **User-friendly CLI**: Color-coded output and real-time progress indicators
 - **Multi-target Support**: IP addresses, CIDR ranges, hostnames, and domain names
 - **Flexible Output**: Multiple report formats (text, CSV)
+- **Visual Feedback**: Spinning progress indicators for long-running operations
 
 ## Prerequisites
 
@@ -50,16 +51,22 @@ PDIve now supports two distinct reconnaissance modes:
 1. **Install System Dependencies**:
 
    **Ubuntu/Debian/Kali:**
+   ```bash
    sudo apt update
    sudo apt install python3 python3-pip amass masscan nmap python3-nmap
+   ```
 
    **Manual Installation:**
+   ```bash
    # Amass - https://github.com/OWASP/Amass
    # Masscan - https://github.com/robertdavidgraham/masscan
    # Nmap - https://nmap.org/download.html
+   ```
 
 2. **Install Python Dependencies**:
+   ```bash
    pip install -r requirements.txt
+   ```
 
 ## Usage
 
@@ -67,6 +74,7 @@ PDIve now supports two distinct reconnaissance modes:
 
 Perfect for stealth reconnaissance and OSINT gathering:
 
+```bash
 # Basic passive discovery
 python pdive.py -t example.com -m passive
 
@@ -75,11 +83,13 @@ python pdive.py -f domains.txt -m passive
 
 # Multiple domains
 python pdive.py -t "example.com,testsite.com" -m passive
+```
 
 ### Active Discovery Mode
 
 Traditional network scanning and analysis:
 
+```bash
 # Basic active scan (port-based discovery only, no ping)
 python pdive.py -t 192.168.1.0/24
 
@@ -94,13 +104,17 @@ python pdive.py -t 192.168.1.0/24 --ping
 
 # Multiple targets active scan
 python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
+```
 
 ### Mixed Examples
+
+```bash
 # Scan from file with custom settings
 python pdive.py -f targets.txt -o /tmp/scan_results -T 100
 
 # Domain passive discovery with custom output
 python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
+```
 
 ### Command Line Options
 
@@ -108,7 +122,7 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `-f, --file`: File containing targets (one per line)
 - `-m, --mode`: Discovery mode - `active` (default) or `passive`
 - `-o, --output`: Output directory (default: pdive_output)
-- `-T, --threads`: Number of threads (default: 50)
+- `-T, --threads`: Number of threads for scan throttling (default: 5)
 - `--nmap`: Enable detailed Nmap scanning after masscan (**Active mode only**)
 - `--masscan`: Use only masscan for fast port scanning, skip service enumeration (**Active mode only, for maximum speed**)
 - `--ping`: Enable ICMP ping for host discovery (**disabled by default for stealth**)
@@ -126,6 +140,7 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 
 When using the `-f` option, create a text file with one target per line:
 
+```
 # Comments start with #
 # For passive mode, use domains:
 example.com
@@ -136,6 +151,7 @@ company.net
 192.168.1.0/24
 10.0.0.1
 server.local
+```
 
 ## Discovery Methods
 
@@ -145,6 +161,8 @@ server.local
    - Sources: Certificate transparency, DNS aggregation, web archives
    - Command: `amass enum -d domain.com -passive`
    - Pure passive mode - no active network traffic to targets
+   - **No Timeout**: Amass runs until completion with visual progress indicator
+   - **Progress Display**: Spinning indicator shows scan is active
 
 ### Active Discovery Process
 
@@ -170,7 +188,7 @@ server.local
 ### Passive Mode Reports
 
 **Host List Report (`pdive_passive_TIMESTAMP.txt`)**:
-
+```
 PDIVE PASSIVE DISCOVERY REPORT
 ============================================================
 
@@ -186,6 +204,7 @@ DISCOVERED HOSTS
   • api.example.com
   • mail.example.com
   • www.example.com
+```
 
 **CSV Host List (`pdive_hosts_TIMESTAMP.csv`)**:
 - Simple format: Host, Discovery_Method, Scan_Time
@@ -248,18 +267,18 @@ DISCOVERED HOSTS
 ## Use Cases
 
 ### Passive Mode - Perfect For:
-- **OSINT Collection**: Gathering public information without direct contact
-- **Stealth Reconnaissance**: Minimal network footprint operations
-- **Domain Analysis**: Understanding an organization's digital footprint
-- **Defensive Assessment**: Identifying your own exposed assets
-- **Compliance Auditing**: Asset discovery for security compliance
+- 🕵️ **OSINT Collection**: Gathering public information without direct contact
+- 🔒 **Stealth Reconnaissance**: Minimal network footprint operations
+- 📊 **Domain Analysis**: Understanding an organization's digital footprint
+- 🛡️ **Defensive Assessment**: Identifying your own exposed assets
+- 📋 **Compliance Auditing**: Asset discovery for security compliance
 
 ### Active Mode - Ideal For:
-- **Penetration Testing**: Authorized security assessments
-- **Vulnerability Assessment**: Identifying open services and versions
-- **Network Discovery**: Mapping internal network topology
-- **Infrastructure Analysis**: Detailed service enumeration
-- **Security Monitoring**: Regular network security checks
+- 🎯 **Penetration Testing**: Authorized security assessments
+- 🔍 **Vulnerability Assessment**: Identifying open services and versions
+- 🖥️ **Network Discovery**: Mapping internal network topology
+- 🛠️ **Infrastructure Analysis**: Detailed service enumeration
+- 📈 **Security Monitoring**: Regular network security checks
 
 ## Troubleshooting
 
@@ -268,14 +287,18 @@ DISCOVERED HOSTS
 PDIve v1.3 includes intelligent masscan sudo handling. Masscan requires root privileges for raw socket access:
 
 **Option 1: Run PDIve with sudo**
+```bash
 sudo python3 pdive.py -t target.com
+```
 
 **Option 2: Configure passwordless sudo for masscan**
+```bash
 # Add to /etc/sudoers (use visudo)
 username ALL=(ALL) NOPASSWD: /usr/bin/masscan
 
 # Test configuration
 sudo -n masscan --help
+```
 
 **Option 3: Let PDIve fallback to basic port scanning**
 - PDIve automatically detects sudo availability
@@ -285,6 +308,8 @@ sudo -n masscan --help
 ### Virtual Environment Setup
 
 If you encounter "externally-managed-environment" errors:
+
+```bash
 # Create and activate virtual environment
 python3 -m venv recon_env
 source recon_env/bin/activate  # Linux/Mac
@@ -296,11 +321,13 @@ pip install -r requirements.txt
 
 # Run PDIve
 python pdive.py -t your_target
+```
 
 ### Missing System Packages
 
 On Debian/Ubuntu/Kali systems:
 
+```bash
 # Install all required packages (including python3-nmap)
 sudo apt update
 sudo apt install python3-venv python3-pip amass masscan nmap python3-nmap
@@ -312,11 +339,13 @@ pip install -r requirements.txt
 
 # Verify nmap module is available
 python3 -c "import nmap; print('nmap module available')"
+```
 
 ### Nmap Module Not Available
 
 If you see "Note: nmap module not available, nmap scanning disabled":
 
+```bash
 # Install python3-nmap system package (recommended for Kali/Debian/Ubuntu)
 sudo apt install python3-nmap
 
@@ -327,34 +356,41 @@ python3 -c "import nmap; print('nmap module available')"
 python3 -m venv recon_env
 source recon_env/bin/activate
 pip install python-nmap
+```
 
 ### Amass Configuration Issues
 
-If amass fails or times out:
+If amass fails:
 
+```bash
 # Test amass manually
-amass enum -d example.com -passive
+amass enum -d example.com
 
 # Check amass installation
 which amass
 amass --help
+```
+
+**Note**: As of v1.3.3, amass runs without timeout and displays a progress indicator during execution. Large domain scans may take considerable time to complete.
 
 ### Common Issues
 
 - **Passive mode with IPs**: Use domain names for passive discovery, not IP addresses
 - **DNSDumpster blocking**: Rate limiting or bot detection may block requests
-- **Amass timeout**: Large domains may take longer; tool has built-in timeout handling
+- **Amass long runtime**: Large domains may take considerable time; watch progress indicator to confirm scan is active
 - **Permission denied**: Ensure proper file permissions for output directory
 - **Network timeouts**: Reduce thread count with `-T` option for slower networks
 
 ## Examples
 
 ### Comprehensive Passive Reconnaissance
+```bash
 # Discover all subdomains for multiple organizations
 echo -e "example.com\ncompany.org\ntarget.net" > domains.txt
 python pdive.py -f domains.txt -m passive -o passive_results
 
 # Results show all discovered subdomains from multiple sources
+```
 
 ### Active Network Assessment
 ```bash
@@ -371,11 +407,13 @@ python pdive.py -t 192.168.0.0/16 -m active --nmap -o internal_scan -T 200
 ```
 
 ### Hybrid Approach
+```bash
 # 1. Start with passive discovery
 python pdive.py -t company.com -m passive -o recon_phase1
 
 # 2. Use discovered hosts for targeted active scanning
 python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
+```
 
 ## Security Considerations
 
@@ -388,11 +426,39 @@ python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
 
 ## Version History
 
-- **v1.3.1**: Disabled ICMP ping by default for stealth operations; added `--ping` flag for optional ICMP discovery
-- **v1.3**: Enhanced masscan integration with intelligent sudo handling and improved error messages
-- **v1.2**: Rebranded to PDIve with enhanced workflow: passive mode uses only amass, active mode uses amass → masscan → nmap
-- **v1.1**: Added passive discovery mode with Amass, DNSDumpster, and crt.sh integration
-- **v1.0**: Initial release as Roverly with active scanning capabilities
+### Python Version
+
+- **v1.3.3** (Current):
+  - Removed amass timeout - scans now run until completion
+  - Added real-time progress indicator for amass operations
+  - Enhanced user experience with visual feedback during long scans
+  - Improved reliability for large domain enumeration tasks
+
+- **v1.3.2**:
+  - Modified default thread count from 50 to 5 for better scan throttling control
+  - Improved conservative scanning approach by default
+  - Updated help text and examples to clarify thread throttling
+  - Users can increase threads with `-T` flag (e.g., `-T 100` for faster scans)
+
+- **v1.3.1**:
+  - Disabled ICMP ping by default for stealth operations
+  - Added `--ping` flag for optional ICMP discovery
+
+- **v1.3**:
+  - Enhanced masscan integration with intelligent sudo handling
+  - Improved error messages and fallback handling
+
+- **v1.2**:
+  - Rebranded to PDIve with enhanced workflow
+  - Passive mode uses only amass
+  - Active mode uses amass → masscan → nmap pipeline
+
+- **v1.1**:
+  - Added passive discovery mode
+  - Integrated Amass, DNSDumpster, and crt.sh
+
+- **v1.0**:
+  - Initial release as Roverly with active scanning capabilities
 
 ## License
 

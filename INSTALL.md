@@ -228,6 +228,7 @@ python3 pdive.py --help
 
 # Quick test scan (requires confirmation)
 # Note: Ping is disabled by default for stealth
+# Progress indicator will show spinning symbol during scan
 echo "y" | python3 pdive.py -t 127.0.0.1 -T 5
 ```
 
@@ -324,8 +325,10 @@ cat > ~/.config/amass/config.ini << 'EOF'
 EOF
 
 # Test amass configuration
-amass enum -d example.com -passive -v
+amass enum -d example.com -v
 ```
+
+**Note**: As of PDIve v1.3.3, amass scans run without timeout and display a real-time progress indicator. Large domains may take several minutes to complete enumeration.
 
 ### 3. Virtual Environment Activation Script
 
@@ -376,6 +379,7 @@ python3 pdive.py --version
 ### 2. Functionality Tests
 ```bash
 # Test passive mode (safe)
+# Watch for progress indicator during amass scan
 echo "y" | python3 pdive.py -t example.com -m passive -T 5
 
 # Test active mode with localhost (safe, no ping by default)
@@ -390,6 +394,8 @@ echo "y" | python3 pdive.py -t 127.0.0.1 -T 5 --ping
 # Test sudo detection
 python3 pdive.py --help | grep -A 5 "masscan"
 ```
+
+**Expected Behavior**: You should see a spinning progress indicator (|/-\) during amass scans, confirming the scan is active and running.
 
 ### 3. Permission Tests
 ```bash
