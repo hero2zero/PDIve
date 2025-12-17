@@ -52,7 +52,7 @@ class PDIve:
             "scan_info": {
                 "targets": self.targets,
                 "start_time": datetime.now().isoformat(),
-                "scanner": "PDIve v1.3.3",
+                "scanner": "PDIve v1.3.4",
                 "discovery_mode": self.discovery_mode
             },
             "hosts": {},
@@ -680,7 +680,18 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                     '--output-filename', '-'
                 ]
 
+            # Start progress indicator in a separate thread
+            progress_stop = threading.Event()
+            progress_thread = threading.Thread(target=self._show_progress_bar, args=(progress_stop, "Masscan port scan in progress"))
+            progress_thread.daemon = True
+            progress_thread.start()
+
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+            # Stop progress indicator
+            progress_stop.set()
+            progress_thread.join()
+            print()  # New line after progress indicator
 
             # Clean up temp file
             os.unlink(target_file_path)
@@ -757,8 +768,19 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                 port_list = ','.join(ports.keys())
                 print(f"{Fore.CYAN}[*] Nmap service scan on {host} ports: {port_list}{Style.RESET_ALL}")
 
+                # Start progress indicator in a separate thread
+                progress_stop = threading.Event()
+                progress_thread = threading.Thread(target=self._show_progress_bar, args=(progress_stop, f"Nmap service scan on {host}"))
+                progress_thread.daemon = True
+                progress_thread.start()
+
                 # Run nmap only on the ports that masscan found
                 nm.scan(hosts=host, ports=port_list, arguments="-Pn -sV --version-intensity 7")
+
+                # Stop progress indicator
+                progress_stop.set()
+                progress_thread.join()
+                print()  # New line after progress indicator
 
                 for scanned_host in nm.all_hosts():
                     if scanned_host not in self.results["hosts"]:
@@ -1103,18 +1125,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             # Use masscan for fast port discovery
             masscan_results = self.masscan_scan(list(all_discovered_hosts))
 
-            if masscan_only:
-                # Masscan-only mode: skip service enumeration entirely for maximum speed
-                print(f"\n{Fore.YELLOW}[*] Masscan-only mode: Skipping service enumeration for speed{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}[+] Fast port scan completed. Use --nmap for detailed service enumeration.{Style.RESET_ALL}")
-            elif enable_nmap and masscan_results:
+            # Always perform service enumeration on discovered ports
+            if enable_nmap and masscan_results:
+                # Use nmap for detailed service enumeration
                 print(f"\n{Fore.CYAN}[*] Phase 4: Detailed service enumeration with nmap{Style.RESET_ALL}")
                 self.nmap_scan(masscan_results)
-            elif masscan_results:
-                # If nmap is not enabled, do basic service enumeration on masscan results
+            else:
+                # Use basic service enumeration on all hosts with open ports
                 print(f"\n{Fore.CYAN}[*] Phase 4: Basic service identification{Style.RESET_ALL}")
                 for host in all_discovered_hosts:
-                    if host in self.results["hosts"]:
+                    if host in self.results["hosts"] and self.results["hosts"][host]["ports"]:
                         for port in self.results["hosts"][host]["ports"]:
                             service_info = self.enumerate_basic_service(host, port)
                             self.results["hosts"][host]["ports"][port]["service"] = service_info
@@ -1152,7 +1172,7 @@ def main():
 Examples:
   python pdive.py -t 192.168.1.0/24
   python pdive.py -t 10.0.0.1 --nmap
-  python pdive.py -t 192.168.1.0/24 --masscan (fast scan, no service enumeration)
+  python pdive.py -t 192.168.1.0/24 --masscan (fast scan with basic service enumeration)
   python pdive.py -t 192.168.1.0/24 --ping
   python pdive.py -f targets.txt -o /tmp/scan_results -T 100 (use 100 threads)
   python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
@@ -1176,10 +1196,10 @@ Examples:
     parser.add_argument('--nmap', action='store_true',
                        help='Enable detailed Nmap scanning after masscan (Active mode only)')
     parser.add_argument('--masscan', action='store_true',
-                       help='Use only masscan for fast port scanning without nmap service enumeration (Active mode only)')
+                       help='Skip passive discovery and use masscan for fast port scanning with basic service enumeration (Active mode only)')
     parser.add_argument('--ping', action='store_true',
                        help='Enable ICMP ping for host discovery (disabled by default for stealth)')
-    parser.add_argument('--version', action='version', version='PDIve 1.3.3')
+    parser.add_argument('--version', action='version', version='PDIve 1.3.4')
 
     args = parser.parse_args()
 
@@ -1194,7 +1214,7 @@ Examples:
 
     if args.nmap and args.masscan:
         print(f"{Fore.RED}[-] Error: --nmap and --masscan flags cannot be used together{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}[*] Use --masscan for fast masscan-only scanning, or --nmap for masscan followed by nmap service enumeration{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}[*] Use --masscan for fast scanning with basic service enumeration, or --nmap for masscan followed by detailed nmap service enumeration{Style.RESET_ALL}")
         sys.exit(1)
 
     if args.file:

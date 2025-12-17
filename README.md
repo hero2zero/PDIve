@@ -26,17 +26,17 @@ PDIve now supports two distinct reconnaissance modes:
 - **Phase 1**: Passive subdomain discovery with Amass
 - **Phase 2**: Host discovery via port-based detection (no ICMP by default)
 - **Phase 3**: Fast port scanning with Masscan (1-65535)
-- **Phase 4**: Service enumeration (basic, nmap, or skip with --masscan)
+- **Phase 4**: Service enumeration (always performed - basic or detailed with nmap)
 - **Stealth by Default**: ICMP ping disabled by default; use `--ping` to enable
-- **Speed Options**: Use `--masscan` for fastest scans (skip service enumeration) or `--nmap` for detailed analysis
-- **Comprehensive Analysis**: Full end-to-end reconnaissance workflow
+- **Speed Options**: Use `--masscan` for fast scans with basic service identification or `--nmap` for detailed analysis
+- **Comprehensive Analysis**: Full end-to-end reconnaissance workflow with automatic service detection
 
 ### General Features
 - **Comprehensive Reporting**: Specialized reports for each discovery mode
 - **User-friendly CLI**: Color-coded output and real-time progress indicators
 - **Multi-target Support**: IP addresses, CIDR ranges, hostnames, and domain names
 - **Flexible Output**: Multiple report formats (text, CSV)
-- **Visual Feedback**: Spinning progress indicators for long-running operations
+- **Visual Feedback**: Progress bars for masscan/nmap scans and spinners for long-running operations
 
 ## Prerequisites
 
@@ -96,7 +96,7 @@ python pdive.py -t 192.168.1.0/24
 # Active scan with nmap integration (detailed service enumeration)
 python pdive.py -t 10.0.0.1 --nmap
 
-# Fast scan with masscan only (no service enumeration, maximum speed)
+# Fast scan with masscan and basic service enumeration
 python pdive.py -t 192.168.1.0/24 --masscan
 
 # Active scan with ping enabled (less stealthy)
@@ -124,7 +124,7 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `-o, --output`: Output directory (default: pdive_output)
 - `-T, --threads`: Number of threads for scan throttling (default: 5)
 - `--nmap`: Enable detailed Nmap scanning after masscan (**Active mode only**)
-- `--masscan`: Use only masscan for fast port scanning, skip service enumeration (**Active mode only, for maximum speed**)
+- `--masscan`: Skip passive discovery and use fast port scanning with basic service enumeration (**Active mode only**)
 - `--ping`: Enable ICMP ping for host discovery (**disabled by default for stealth**)
 - `--version`: Show version information
 
@@ -134,7 +134,7 @@ python pdive.py -t "*.company.com" -m passive -o /tmp/passive_recon
 - `--nmap` and `--masscan` flags cannot be used with passive mode
 - `--ping` is disabled by default for stealth; port-based discovery is used instead
 - Passive mode works best with domain names, not IP addresses
-- Use `--masscan` when speed is critical and you only need open port information
+- Service enumeration is ALWAYS performed on all discovered open ports (basic or detailed with --nmap)
 
 ### Target File Format
 
@@ -167,21 +167,21 @@ server.local
 ### Active Discovery Process
 
 1. **Authorization Check**: Prompts user to confirm scanning authorization
-2. **Phase 1 - Amass Discovery**: Passive subdomain enumeration using amass
+2. **Phase 1 - Amass Discovery**: Passive subdomain enumeration using amass (skipped with --masscan or --nmap flags)
 3. **Phase 2 - Host Discovery**: Port-based host detection (optional ICMP ping with --ping flag)
-4. **Phase 3 - Masscan**: Fast port scanning (1-65535) on all live hosts
-5. **Phase 4 - Service Enumeration**: Choose your speed/detail tradeoff:
+4. **Phase 3 - Masscan**: Fast port scanning (1-65535) on all live hosts with real-time progress bar
+5. **Phase 4 - Service Enumeration**: ALWAYS performed on all discovered open ports:
    - **Default**: Basic service identification via HTTP headers and port mapping
-   - **--nmap flag**: Detailed service/version detection with Nmap
-   - **--masscan flag**: Skip service enumeration entirely for maximum speed
-6. **Report Generation**: Creates comprehensive scan reports
+   - **--nmap flag**: Detailed service/version detection with Nmap (includes progress bar per host)
+   - **--masscan flag**: Basic service identification (same as default but skips Phase 1)
+6. **Report Generation**: Creates comprehensive scan reports with service information
 
 **Note**: ICMP ping is disabled by default for stealth. PDIve uses port-based discovery (checks common ports like 80, 443, 22) to detect live hosts without generating ICMP traffic.
 
 **Speed vs Detail Trade-off**:
-- **Fastest**: Use `--masscan` to skip Phase 4 entirely (port discovery only)
-- **Balanced**: Default behavior with basic service identification
-- **Most Detailed**: Use `--nmap` for comprehensive service/version enumeration
+- **Fastest**: Use `--masscan` to skip passive discovery and use basic service identification
+- **Balanced**: Default behavior with amass discovery + basic service identification
+- **Most Detailed**: Use `--nmap` for comprehensive service/version enumeration with detailed Nmap scans
 
 ## Output and Reports
 
@@ -394,16 +394,16 @@ python pdive.py -f domains.txt -m passive -o passive_results
 
 ### Active Network Assessment
 ```bash
-# Fast port scan for quick network mapping (no service enumeration)
+# Fast port scan for quick network mapping (with basic service enumeration)
 python pdive.py -t 192.168.0.0/16 --masscan -o quick_scan -T 200
 
-# Balanced scan with basic service identification (default)
+# Balanced scan with amass discovery and basic service identification (default)
 python pdive.py -t 192.168.0.0/16 -o balanced_scan -T 200
 
-# Full internal network scan with detailed analysis
+# Full internal network scan with detailed nmap service analysis
 python pdive.py -t 192.168.0.0/16 -m active --nmap -o internal_scan -T 200
 
-# Results include live hosts, open ports, and optionally service versions
+# Results include live hosts, open ports, and service information (always)
 ```
 
 ### Hybrid Approach
@@ -428,7 +428,14 @@ python pdive.py -f discovered_hosts.txt -m active --nmap -o recon_phase2
 
 ### Python Version
 
-- **v1.3.3** (Current):
+- **v1.3.4** (Current):
+  - **Progress Bars**: Added visual progress bars for masscan and nmap scans
+  - **Always-On Service Scanning**: Service enumeration now ALWAYS performed on all discovered open ports
+  - **Enhanced User Experience**: Real-time progress indicators show scan status with elapsed time
+  - **Improved Workflow**: Removed option to skip service enumeration - all scans now provide service information
+  - **Better Visibility**: Progress bars display for long-running masscan and per-host nmap scans
+
+- **v1.3.3**:
   - Removed amass timeout - scans now run until completion
   - Added real-time progress indicator for amass operations
   - Enhanced user experience with visual feedback during long scans

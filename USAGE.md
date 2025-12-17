@@ -37,7 +37,7 @@ python3 pdive.py -t 192.168.1.0/24 --ping
 # Active discovery with detailed service detection
 python3 pdive.py -t 10.0.0.1 --nmap
 
-# Fast active discovery with masscan only (no service enumeration)
+# Fast active discovery with masscan and basic service enumeration
 python3 pdive.py -t 192.168.1.0/24 --masscan
 ```
 
@@ -69,10 +69,10 @@ python3 pdive.py -t 192.168.1.0/24 --masscan
 **Duration**: 2-30 minutes depending on scope
 
 **Workflow**:
-1. **Phase 1**: Amass passive subdomain discovery
+1. **Phase 1**: Amass passive subdomain discovery (skipped with --masscan or --nmap flags)
 2. **Phase 2**: Host discovery (port-based detection; optional ICMP ping with --ping)
-3. **Phase 3**: Fast port scanning with Masscan (1-65535)
-4. **Phase 4**: Service enumeration (basic, Nmap if --nmap enabled, or skip if --masscan enabled)
+3. **Phase 3**: Fast port scanning with Masscan (1-65535) with real-time progress bar
+4. **Phase 4**: Service enumeration (ALWAYS performed - basic by default, detailed with --nmap)
 
 **Stealth Features**:
 - ICMP ping disabled by default to avoid IDS/IPS detection
@@ -84,6 +84,24 @@ python3 pdive.py -t 192.168.1.0/24 --masscan
 - Network discovery
 - Vulnerability assessments
 - Infrastructure analysis
+
+### Progress Indicators (v1.3.4+)
+
+PDIve provides real-time visual feedback during long-running operations:
+
+**Progress Bars**:
+- **Masscan Scans**: Visual progress bar with percentage and elapsed time
+- **Nmap Scans**: Per-host progress bar showing scan status
+- **Format**: `[=====>                    ] 25.3% (15s)`
+
+**Progress Indicators**:
+- **Amass Scans**: Spinning indicator (|/-\) shows scan is active
+- **Long Operations**: Animated feedback confirms the tool is working
+
+**Benefits**:
+- Know your scan is progressing (not hung)
+- Estimate remaining time
+- Better user experience during large scans
 
 ## Command Line Options
 
@@ -97,9 +115,9 @@ python3 pdive.py -t 192.168.1.0/24 --masscan
 ```bash
 -m, --mode      # Discovery mode: active (default) or passive
 -o, --output    # Output directory (default: pdive_output)
--T, --threads   # Number of threads (default: 50)
+-T, --threads   # Number of threads (default: 5)
 --nmap          # Enable detailed Nmap scanning after masscan (active mode only)
---masscan       # Use only masscan, skip service enumeration for speed (active mode only)
+--masscan       # Skip passive discovery, fast port scanning with basic service enumeration (active mode only)
 --ping          # Enable ICMP ping for host discovery (disabled by default)
 --version       # Show version information
 ```
@@ -110,7 +128,7 @@ python3 pdive.py -t 192.168.1.0/24 --masscan
 python3 pdive.py -t target.com
 python3 pdive.py -f targets.txt
 python3 pdive.py -t "ip1,ip2,domain" -m active --nmap
-python3 pdive.py -t 192.168.1.0/24 --masscan  # Fast scan, no service enum
+python3 pdive.py -t 192.168.1.0/24 --masscan  # Fast scan with basic service enum
 python3 pdive.py -t 192.168.1.0/24 --ping --nmap
 python3 pdive.py -f domains.txt -m passive -o results
 
@@ -260,6 +278,7 @@ python3 pdive.py -t "192.168.1.1,example.com,server.local"
 
 [*] Phase 3: Fast port scanning with masscan
 [*] Running masscan on 2 hosts...
+[*] Masscan port scan in progress [=====>                    ] 25.3% (15s)
 [+] Masscan found: 192.168.1.1:80
 [+] Masscan found: 192.168.1.1:443
 [+] Masscan found: 192.168.1.100:22
@@ -272,19 +291,19 @@ python3 pdive.py -t "192.168.1.1,example.com,server.local"
 
 ### Network Segment Discovery
 ```bash
-# Fast scan for quick mapping (masscan only, no service enum)
+# Fast scan for quick mapping (masscan with basic service enumeration)
 python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" --masscan -T 100
 
-# Scan multiple network segments (stealth mode, no ping, basic service enum)
+# Scan multiple network segments (stealth mode, no ping, with amass and basic service enum)
 python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" -T 100
 
-# DMZ network scan with detailed enumeration and ping
+# DMZ network scan with detailed nmap enumeration and ping
 sudo python3 pdive.py -t 172.16.0.0/24 --nmap --ping -o dmz_scan
 
-# Internal infrastructure fast discovery (masscan only for speed)
+# Internal infrastructure fast discovery (masscan with basic service enumeration)
 python3 pdive.py -t "192.168.0.0/16" --masscan -T 200 -o internal_quick
 
-# Internal infrastructure discovery (stealth, basic service enum)
+# Internal infrastructure discovery (amass + stealth + basic service enum)
 python3 pdive.py -t "192.168.0.0/16" -T 200 -o internal_recon
 
 # Internal scan with ICMP ping (when firewall allows)
@@ -306,19 +325,19 @@ python3 pdive.py -f discovered_hosts.txt -o phase2 --nmap
 
 ### Performance Optimization
 ```bash
-# Maximum speed scanning (masscan only, no service enum, requires powerful system)
+# Maximum speed scanning (masscan with basic service enum, requires powerful system)
 sudo python3 pdive.py -t 10.0.0.0/16 --masscan -T 500
 
-# High-speed scanning with basic service enum (requires powerful system)
+# High-speed scanning with full workflow (amass + basic service enum, requires powerful system)
 sudo python3 pdive.py -t 10.0.0.0/16 -T 500
 
 # Conservative scanning (slower networks/systems)
 python3 pdive.py -t target.com -T 10
 
-# Memory-efficient large network scan (fast, masscan only)
+# Memory-efficient large network scan (fast with basic service enum)
 python3 pdive.py -t 172.16.0.0/12 --masscan -T 50 -o large_scan
 
-# Memory-efficient large network scan with service enum
+# Memory-efficient large network scan with full workflow
 python3 pdive.py -t 172.16.0.0/12 -T 50 -o large_scan
 ```
 
@@ -346,16 +365,16 @@ python3 pdive.py -t 192.168.1.0/24 -T 20
 # Step 1: Passive reconnaissance
 python3 pdive.py -t target.com -m passive -o step1_passive
 
-# Step 2: Active host discovery
+# Step 2: Active host discovery with basic service enum
 python3 pdive.py -t target.com -o step2_active
 
-# Step 3: Fast port scanning (masscan only for speed)
+# Step 3: Fast port scanning (masscan with basic service enum)
 sudo python3 pdive.py -t target.com --masscan -o step3_fast
 
-# Step 4: Detailed service enumeration (add nmap)
+# Step 4: Detailed service enumeration (nmap for comprehensive analysis)
 sudo python3 pdive.py -t target.com --nmap -o step4_detailed
 
-# Step 5: Infrastructure mapping
+# Step 5: Infrastructure mapping with detailed enumeration
 python3 pdive.py -t "target.com,target.org,target.net" --nmap -o step5_infrastructure
 ```
 
@@ -698,19 +717,19 @@ sudo tcpdump -i any port 53
 # 1. Passive reconnaissance (OSINT phase)
 python3 pdive.py -t client.com -m passive -o "pentest/01-passive"
 
-# 2. Stealth active host discovery (no ping)
+# 2. Stealth active host discovery (no ping, with basic service enum)
 python3 pdive.py -t client.com -o "pentest/02-stealth-discovery" -T 50
 
-# 3. Fast port mapping (masscan only, maximum speed)
+# 3. Fast port mapping (masscan with basic service enum)
 sudo python3 pdive.py -t client.com --masscan -T 100 -o "pentest/03-fast-ports"
 
-# 4. Standard active discovery (with ping if allowed)
+# 4. Standard active discovery (with ping if allowed, basic service enum)
 python3 pdive.py -t client.com --ping -o "pentest/04-standard-discovery" -T 50
 
-# 5. Detailed enumeration with nmap
+# 5. Detailed enumeration with nmap (comprehensive service detection)
 sudo python3 pdive.py -t client.com --nmap -o "pentest/05-detailed" -T 100
 
-# 6. Infrastructure mapping
+# 6. Infrastructure mapping with detailed service analysis
 python3 pdive.py -t "client.com,client.org,client.net" --nmap --ping -o "pentest/06-infrastructure"
 
 # 7. Analysis and reporting
@@ -746,4 +765,16 @@ python3 pdive.py -t high-value-hosts.txt --nmap -T 10 -o "redteam/phase3"
 # ICMP ping will trigger IDS/IPS alerts and expose your presence
 ```
 
-This comprehensive usage guide should help users effectively utilize PDIve v1.3 for their authorized security testing and reconnaissance needs.
+## Version-Specific Features
+
+### v1.3.4 Updates
+- **Progress Bars**: Added visual progress bars for masscan and nmap scans with elapsed time
+- **Always-On Service Scanning**: Service enumeration now ALWAYS performed on all discovered ports
+- **Enhanced Visibility**: Real-time progress indicators show scan status
+- **Improved UX**: Better feedback during long-running operations
+
+### v1.3.3 Updates
+- **No Timeout for Amass**: Amass scans run until completion (no artificial timeout)
+- **Progress Indicators**: Visual spinning indicators show amass scan is active
+
+This comprehensive usage guide should help users effectively utilize PDIve v1.3.4 for their authorized security testing and reconnaissance needs.
