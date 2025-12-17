@@ -97,6 +97,36 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             idx += 1
             time.sleep(0.2)
 
+    def _show_progress_bar(self, stop_event, message):
+        """Display a progress bar with arrow that crawls from left to right"""
+        start_time = time.time()
+        bar_width = 30
+
+        while not stop_event.is_set():
+            elapsed = time.time() - start_time
+            # Estimate progress based on typical amass scan duration (assume ~60 seconds for estimation)
+            # Progress moves continuously but slows down as it approaches 95%
+            estimated_progress = min(95, (elapsed / 60.0) * 100)
+
+            # Calculate the position of the arrow in the bar
+            filled = int((estimated_progress / 100.0) * bar_width)
+
+            # Create the progress bar with arrow
+            if filled == 0:
+                bar = '>' + ' ' * (bar_width - 1)
+            elif filled >= bar_width:
+                bar = '=' * bar_width
+            else:
+                bar = '=' * (filled - 1) + '>' + ' ' * (bar_width - filled)
+
+            # Format elapsed time
+            mins, secs = divmod(int(elapsed), 60)
+            time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+
+            print(f"\r{Fore.CYAN}[*] {message} [{bar}] {estimated_progress:>5.1f}% ({time_str}){Style.RESET_ALL}",
+                  end='', flush=True)
+            time.sleep(0.3)
+
     def validate_targets(self):
         """Validate if all targets are valid IP addresses, network ranges, or hostnames"""
         valid_targets = []
@@ -369,11 +399,9 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             # Start progress indicator in a separate thread
             progress_stop = threading.Event()
-            progress_thread = threading.Thread(target=self._show_progress, args=(progress_stop, "Amass scan in progress"))
+            progress_thread = threading.Thread(target=self._show_progress_bar, args=(progress_stop, "Amass scan in progress"))
             progress_thread.daemon = True
             progress_thread.start()
-
-            print(f"{Fore.YELLOW}[*] Amass scan started (no timeout - will run until completion){Style.RESET_ALL}")
 
             # Run amass without timeout
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -388,8 +416,12 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                 if output_lines and any(line.strip() for line in output_lines):
                     for line in output_lines:
                         if line.strip():
-                            discovered_hosts.add(line.strip())
-                            print(f"{Fore.GREEN}[+] Amass discovered: {line.strip()}{Style.RESET_ALL}")
+                            # Extract just the hostname from amass output
+                            # Amass may output formats like: "hostname (FQDN) --> record_type --> ip (IPAddress)"
+                            # We only want the hostname part
+                            hostname = line.strip().split()[0]
+                            discovered_hosts.add(hostname)
+                            print(f"{Fore.GREEN}[+] Amass discovered: {hostname}{Style.RESET_ALL}")
                 else:
                     print(f"{Fore.YELLOW}[*] Amass completed but found no subdomains for {domain}{Style.RESET_ALL}")
             else:
