@@ -1,4 +1,4 @@
-# PDIve (Python Version)
+# PDIve(tm) (Python Version)
 
 **Dive deep into the network**
 
