@@ -37,22 +37,33 @@ except ImportError:
     HAS_NMAP = False
     print("Note: nmap module not available, nmap scanning disabled")
 
+try:
+    import whois
+    HAS_WHOIS = True
+except ImportError:
+    HAS_WHOIS = False
+    print("Note: whois module not available, whois lookups disabled")
+
 if HAS_COLORAMA:
     init(autoreset=True)
 
+# Version constant
+VERSION = "1.4"
+
 
 class PDIve:
-    def __init__(self, targets, output_dir="pdive_output", threads=50, discovery_mode="active", enable_ping=False):
+    def __init__(self, targets, output_dir="pdive_output", threads=50, discovery_mode="active", enable_ping=False, amass_timeout=None):
         self.targets = targets if isinstance(targets, list) else [targets]
         self.output_dir = output_dir
         self.threads = threads
         self.discovery_mode = discovery_mode
         self.enable_ping = enable_ping
+        self.amass_timeout = amass_timeout
         self.results = {
             "scan_info": {
                 "targets": self.targets,
                 "start_time": datetime.now().isoformat(),
-                "scanner": "PDIve v1.3.4",
+                "scanner": f"PDIve v{VERSION}",
                 "discovery_mode": self.discovery_mode
             },
             "hosts": {},
@@ -67,6 +78,8 @@ class PDIve:
         targets_display = ', '.join(self.targets[:3])
         if len(self.targets) > 3:
             targets_display += f" ... (+{len(self.targets) - 3} more)"
+
+        amass_timeout_display = f"{self.amass_timeout}s" if self.amass_timeout else "None"
 
         banner = f"""
 {Fore.CYAN}
@@ -85,6 +98,7 @@ Output Directory: {Fore.GREEN}{self.output_dir}{Style.RESET_ALL}
 Threads: {Fore.GREEN}{self.threads}{Style.RESET_ALL}
 Discovery Mode: {Fore.GREEN}{self.discovery_mode.upper()}{Style.RESET_ALL}
 Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
+Amass Timeout: {Fore.GREEN}{amass_timeout_display}{Style.RESET_ALL}
 """
         print(banner)
 
@@ -175,10 +189,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         def ping_host(host):
             try:
-                response = os.system(f"ping -c 1 -W 2 {host} > /dev/null 2>&1")
-                if response == 0:
+                import subprocess
+                result = subprocess.run(
+                    ['ping', '-c', '1', '-W', '2', str(host)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+                if result.returncode == 0:
                     return str(host)
-            except:
+            except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
                 pass
             return None
 
@@ -192,7 +212,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                     sock.close()
                     if result == 0:
                         return str(host)
-                except:
+                except (socket.error, socket.timeout, OSError):
                     continue
             return None
 
@@ -246,7 +266,26 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         """Perform port scanning on discovered hosts"""
         print(f"\n{Fore.YELLOW}[+] Starting Port Scanning...{Style.RESET_ALL}")
 
-        common_ports = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 993, 995, 1723, 3306, 3389, 5432, 5900, 8080, 8443]
+        common_ports = [
+            # FTP, SSH, Telnet
+            21, 22, 23,
+            # SMTP, DNS
+            25, 53,
+            # HTTP/HTTPS
+            80, 443, 8080, 8443, 8000, 8888, 9000, 9090,
+            # Email
+            110, 143, 993, 995, 587,
+            # Windows
+            135, 139, 445, 3389,
+            # Remote access
+            111, 1723, 5900, 5901,
+            # Databases
+            3306, 5432, 27017, 6379, 9200, 9300, 5984,
+            # Web frameworks
+            3000, 4000, 5000, 8000, 8081, 8082,
+            # Other services
+            1433, 2049, 2181, 2375, 5601, 6443, 7001, 8161, 8500, 9092, 11211
+        ]
 
         def scan_port(host, port):
             try:
@@ -257,7 +296,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
                 if result == 0:
                     return port
-            except:
+            except (socket.error, socket.timeout, OSError):
                 pass
             return None
 
@@ -286,10 +325,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         service_map = {
             21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns",
-            80: "http", 110: "pop3", 135: "rpc", 139: "netbios", 143: "imap",
-            443: "https", 993: "imaps", 995: "pop3s", 1723: "pptp",
-            3306: "mysql", 3389: "rdp", 5432: "postgresql", 5900: "vnc",
-            8080: "http-alt", 8443: "https-alt"
+            80: "http", 110: "pop3", 111: "rpcbind", 135: "msrpc", 139: "netbios-ssn", 143: "imap",
+            443: "https", 445: "microsoft-ds", 587: "submission", 993: "imaps", 995: "pop3s",
+            1433: "ms-sql-s", 1723: "pptp", 2049: "nfs", 2181: "zookeeper", 2375: "docker",
+            3000: "node", 3306: "mysql", 3389: "rdp", 4000: "http-alt", 5000: "http-alt",
+            5432: "postgresql", 5601: "kibana", 5900: "vnc", 5901: "vnc-1",
+            5984: "couchdb", 6379: "redis", 6443: "kubernetes", 7001: "afs3-callback",
+            8000: "http-alt", 8080: "http-proxy", 8081: "http-alt", 8082: "http-alt",
+            8161: "patrol-snmp", 8443: "https-alt", 8500: "consul", 8888: "http-alt",
+            9000: "http-alt", 9090: "http-alt", 9092: "kafka", 9200: "elasticsearch",
+            9300: "elasticsearch-transport", 11211: "memcached", 27017: "mongodb"
         }
 
         def enumerate_service(host, port):
@@ -298,22 +343,26 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
                 if service in ["http", "https", "http-alt", "https-alt"]:
                     protocol = "https" if service in ["https", "https-alt"] else "http"
-                    port_num = port if port not in ["80", "443"] else ""
-                    url = f"{protocol}://{host}:{port_num}" if port_num else f"{protocol}://{host}"
+                    # Only include port in URL if it's not the default for the protocol
+                    default_port = "443" if protocol == "https" else "80"
+                    if port == default_port:
+                        url = f"{protocol}://{host}"
+                    else:
+                        url = f"{protocol}://{host}:{port}"
 
                     try:
                         # Suppress SSL warnings and disable SSL verification for reconnaissance
                         response = requests.get(url, timeout=5, verify=False,
-                                              headers={'User-Agent': 'PDIve/1.3'})
+                                              headers={'User-Agent': f'PDIve/{VERSION}'})
                         server_header = response.headers.get('Server', 'Unknown')
                         service_info = f"{service} ({server_header})"
-                    except:
+                    except (requests.RequestException, ConnectionError, TimeoutError):
                         service_info = service
                 else:
                     service_info = service
 
                 return service_info
-            except:
+            except Exception as e:
                 return "unknown"
 
         for host in hosts:
@@ -373,7 +422,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             # Try Go-installed amass first (to avoid broken snap version), then check PATH
             amass_path = None
-            go_amass_path = '/home/james/go/bin/amass'
+            go_amass_path = os.path.expanduser('~/go/bin/amass')
             if os.path.exists(go_amass_path):
                 amass_path = go_amass_path
             else:
@@ -399,20 +448,53 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             # Start progress indicator in a separate thread
             progress_stop = threading.Event()
-            progress_thread = threading.Thread(target=self._show_progress_bar, args=(progress_stop, "Amass scan in progress"))
+
+            # Display timeout info if set
+            if self.amass_timeout:
+                timeout_msg = f"Amass scan in progress (timeout: {self.amass_timeout}s)"
+            else:
+                timeout_msg = "Amass scan in progress"
+
+            progress_thread = threading.Thread(target=self._show_progress_bar, args=(progress_stop, timeout_msg))
             progress_thread.daemon = True
             progress_thread.start()
 
-            # Run amass without timeout
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Run amass with or without timeout
+            try:
+                if self.amass_timeout:
+                    # Use Popen for better timeout handling with partial output
+                    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    try:
+                        stdout, stderr = process.communicate(timeout=self.amass_timeout)
+                        returncode = process.returncode
+                    except subprocess.TimeoutExpired:
+                        # Timeout occurred - terminate process and get partial output
+                        process.terminate()
+                        try:
+                            # Give it a moment to terminate gracefully
+                            stdout, stderr = process.communicate(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            # Force kill if it doesn't terminate
+                            process.kill()
+                            stdout, stderr = process.communicate()
 
-            # Stop progress indicator
-            progress_stop.set()
-            progress_thread.join()
-            print()  # New line after progress indicator
+                        returncode = -1  # Indicate timeout occurred
+                        print(f"\n{Fore.YELLOW}[!] Amass timeout reached ({self.amass_timeout}s), processing partial results...{Style.RESET_ALL}")
+                else:
+                    # Run without timeout
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    stdout = result.stdout
+                    stderr = result.stderr
+                    returncode = result.returncode
+            finally:
+                # Always stop progress indicator, even if subprocess fails
+                progress_stop.set()
+                progress_thread.join()
+                print()  # New line after progress indicator
 
-            if result.returncode == 0:
-                output_lines = result.stdout.strip().split('\n')
+            # Process output regardless of timeout
+            if stdout and stdout.strip():
+                output_lines = stdout.strip().split('\n')
                 if output_lines and any(line.strip() for line in output_lines):
                     for line in output_lines:
                         if line.strip():
@@ -422,11 +504,19 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                             hostname = line.strip().split()[0]
                             discovered_hosts.add(hostname)
                             print(f"{Fore.GREEN}[+] Amass discovered: {hostname}{Style.RESET_ALL}")
+
+                    if returncode == -1:
+                        print(f"{Fore.GREEN}[+] Saved {len(discovered_hosts)} hosts discovered before timeout{Style.RESET_ALL}")
                 else:
-                    print(f"{Fore.YELLOW}[*] Amass completed but found no subdomains for {domain}{Style.RESET_ALL}")
+                    if returncode != -1:
+                        print(f"{Fore.YELLOW}[*] Amass completed but found no subdomains for {domain}{Style.RESET_ALL}")
             else:
-                error_msg = result.stderr.strip() if result.stderr else "Unknown error"
-                print(f"{Fore.RED}[-] Amass failed (exit code {result.returncode}): {error_msg}{Style.RESET_ALL}")
+                if returncode != -1:
+                    print(f"{Fore.YELLOW}[*] Amass completed but found no subdomains for {domain}{Style.RESET_ALL}")
+
+            if returncode not in [0, -1]:
+                error_msg = stderr.strip() if stderr else "Unknown error"
+                print(f"{Fore.RED}[-] Amass failed (exit code {returncode}): {error_msg}{Style.RESET_ALL}")
 
                 # If amass fails, provide helpful debugging info
                 if "config" in error_msg.lower() or "permission" in error_msg.lower():
@@ -540,7 +630,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             # Query crt.sh API
             url = f'https://crt.sh/?q=%.{domain}&output=json'
-            response = requests.get(url, timeout=30, headers={'User-Agent': 'PDIve/1.3.2'})
+            response = requests.get(url, timeout=30, headers={'User-Agent': f'PDIve/{VERSION}'})
 
             if response.status_code == 200:
                 try:
@@ -583,7 +673,7 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         # Check if masscan is available - try custom path first, then PATH
         masscan_path = None
-        custom_masscan_path = '/home/james/go/bin/masscan'
+        custom_masscan_path = os.path.expanduser('~/go/bin/masscan')
         if os.path.exists(custom_masscan_path):
             masscan_path = custom_masscan_path
         else:
@@ -597,11 +687,23 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             return {host: self.results["hosts"][host]["ports"] for host in hosts if host in self.results["hosts"]}
 
         # Check if we're already running as root or can run masscan
-        is_root = os.geteuid() == 0
+        # geteuid() is Unix-only, so we need platform checks
+        is_root = False
         use_sudo = False
 
         print(f"{Fore.CYAN}[*] Checking masscan privileges...{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}[*] Running as root: {is_root} (UID: {os.getuid()}, EUID: {os.geteuid()}){Style.RESET_ALL}")
+
+        try:
+            # Only available on Unix-like systems
+            if hasattr(os, 'geteuid'):
+                is_root = os.geteuid() == 0
+                print(f"{Fore.CYAN}[*] Running as root: {is_root} (UID: {os.getuid()}, EUID: {os.geteuid()}){Style.RESET_ALL}")
+            else:
+                # Windows or other platforms - assume not root
+                print(f"{Fore.CYAN}[*] Platform does not support privilege detection, assuming non-root{Style.RESET_ALL}")
+                is_root = False
+        except AttributeError:
+            is_root = False
 
         # If we're already running as root, no need for sudo
         if is_root:
@@ -686,12 +788,13 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             progress_thread.daemon = True
             progress_thread.start()
 
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-
-            # Stop progress indicator
-            progress_stop.set()
-            progress_thread.join()
-            print()  # New line after progress indicator
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            finally:
+                # Always stop progress indicator
+                progress_stop.set()
+                progress_thread.join()
+                print()  # New line after progress indicator
 
             # Clean up temp file
             os.unlink(target_file_path)
@@ -774,13 +877,14 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
                 progress_thread.daemon = True
                 progress_thread.start()
 
-                # Run nmap only on the ports that masscan found
-                nm.scan(hosts=host, ports=port_list, arguments="-Pn -sV --version-intensity 7")
-
-                # Stop progress indicator
-                progress_stop.set()
-                progress_thread.join()
-                print()  # New line after progress indicator
+                try:
+                    # Run nmap only on the ports that masscan found
+                    nm.scan(hosts=host, ports=port_list, arguments="-Pn -sV --version-intensity 7")
+                finally:
+                    # Always stop progress indicator
+                    progress_stop.set()
+                    progress_thread.join()
+                    print()  # New line after progress indicator
 
                 for scanned_host in nm.all_hosts():
                     if scanned_host not in self.results["hosts"]:
@@ -828,10 +932,16 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         """Perform basic service enumeration without nmap"""
         service_map = {
             21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns",
-            80: "http", 110: "pop3", 135: "rpc", 139: "netbios", 143: "imap",
-            443: "https", 993: "imaps", 995: "pop3s", 1723: "pptp",
-            3306: "mysql", 3389: "rdp", 5432: "postgresql", 5900: "vnc",
-            8080: "http-alt", 8443: "https-alt"
+            80: "http", 110: "pop3", 111: "rpcbind", 135: "msrpc", 139: "netbios-ssn", 143: "imap",
+            443: "https", 445: "microsoft-ds", 587: "submission", 993: "imaps", 995: "pop3s",
+            1433: "ms-sql-s", 1723: "pptp", 2049: "nfs", 2181: "zookeeper", 2375: "docker",
+            3000: "node", 3306: "mysql", 3389: "rdp", 4000: "http-alt", 5000: "http-alt",
+            5432: "postgresql", 5601: "kibana", 5900: "vnc", 5901: "vnc-1",
+            5984: "couchdb", 6379: "redis", 6443: "kubernetes", 7001: "afs3-callback",
+            8000: "http-alt", 8080: "http-proxy", 8081: "http-alt", 8082: "http-alt",
+            8161: "patrol-snmp", 8443: "https-alt", 8500: "consul", 8888: "http-alt",
+            9000: "http-alt", 9090: "http-alt", 9092: "kafka", 9200: "elasticsearch",
+            9300: "elasticsearch-transport", 11211: "memcached", 27017: "mongodb"
         }
 
         try:
@@ -839,21 +949,25 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
             if service in ["http", "https", "http-alt", "https-alt"]:
                 protocol = "https" if service in ["https", "https-alt"] else "http"
-                port_num = port if port not in ["80", "443"] else ""
-                url = f"{protocol}://{host}:{port_num}" if port_num else f"{protocol}://{host}"
+                # Only include port in URL if it's not the default for the protocol
+                default_port = "443" if protocol == "https" else "80"
+                if port == default_port:
+                    url = f"{protocol}://{host}"
+                else:
+                    url = f"{protocol}://{host}:{port}"
 
                 try:
                     response = requests.get(url, timeout=5, verify=False,
-                                          headers={'User-Agent': 'PDIve/1.3.2'})
+                                          headers={'User-Agent': f'PDIve/{VERSION}'})
                     server_header = response.headers.get('Server', 'Unknown')
                     service_info = f"{service} ({server_header})"
-                except:
+                except (requests.RequestException, ConnectionError, TimeoutError):
                     service_info = service
             else:
                 service_info = service
 
             return service_info
-        except:
+        except Exception as e:
             return "unknown"
 
     def resolve_domain_to_ip(self, hostname):
@@ -882,6 +996,42 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
         except (socket.herror, socket.gaierror, ValueError):
             return "N/A"  # Reverse lookup failed or invalid IP
 
+    def whois_lookup(self, target):
+        """Perform WHOIS lookup on domain or IP address"""
+        if not HAS_WHOIS:
+            return {"error": "WHOIS module not available"}
+
+        try:
+            print(f"{Fore.CYAN}[*] Performing WHOIS lookup for {target}...{Style.RESET_ALL}")
+
+            # Perform WHOIS query
+            w = whois.whois(target)
+
+            # Extract useful information
+            whois_data = {
+                "domain_name": w.domain_name if hasattr(w, 'domain_name') else "N/A",
+                "registrar": w.registrar if hasattr(w, 'registrar') else "N/A",
+                "creation_date": str(w.creation_date) if hasattr(w, 'creation_date') else "N/A",
+                "expiration_date": str(w.expiration_date) if hasattr(w, 'expiration_date') else "N/A",
+                "updated_date": str(w.updated_date) if hasattr(w, 'updated_date') else "N/A",
+                "name_servers": ', '.join(w.name_servers) if hasattr(w, 'name_servers') and w.name_servers else "N/A",
+                "status": ', '.join(w.status) if hasattr(w, 'status') and w.status else "N/A",
+                "emails": ', '.join(w.emails) if hasattr(w, 'emails') and w.emails else "N/A",
+                "org": w.org if hasattr(w, 'org') else "N/A",
+                "country": w.country if hasattr(w, 'country') else "N/A"
+            }
+
+            # Handle list values for domain_name
+            if isinstance(whois_data["domain_name"], list):
+                whois_data["domain_name"] = ', '.join(whois_data["domain_name"])
+
+            print(f"{Fore.GREEN}[+] WHOIS lookup completed for {target}{Style.RESET_ALL}")
+            return whois_data
+
+        except Exception as e:
+            print(f"{Fore.YELLOW}[!] WHOIS lookup failed for {target}: {e}{Style.RESET_ALL}")
+            return {"error": str(e)}
+
     def generate_report(self):
         """Generate comprehensive scan reports in text and CSV format"""
         print(f"\n{Fore.YELLOW}[+] Generating Reports...{Style.RESET_ALL}")
@@ -891,6 +1041,28 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         total_hosts = len(self.results["hosts"])
         total_ports = sum(len(host_data["ports"]) for host_data in self.results["hosts"].values())
+
+        # DNS lookup caches to avoid redundant lookups
+        dns_cache = {}  # hostname -> IP
+        rdns_cache = {}  # IP -> reverse DNS
+
+        # Perform WHOIS lookups for targets
+        whois_results = {}
+        if HAS_WHOIS:
+            print(f"\n{Fore.YELLOW}[+] Performing WHOIS lookups for targets...{Style.RESET_ALL}")
+            for target in self.targets:
+                # Extract domain from target (skip IP ranges)
+                domain = self.extract_domain(target)
+                if domain and domain not in whois_results:
+                    whois_results[target] = self.whois_lookup(target)
+                elif not domain:
+                    # For IP addresses or ranges, try to get the first host
+                    try:
+                        network = ipaddress.ip_network(target, strict=False)
+                        if network.num_addresses == 1:
+                            whois_results[target] = self.whois_lookup(str(network.network_address))
+                    except:
+                        pass
 
         # Extract the directory name to use as prefix
         dir_name = os.path.basename(self.output_dir)
@@ -914,16 +1086,50 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             f.write(f"Total Open Ports: {total_ports}\n")
             f.write(f"Unresponsive Hosts: {self.results['unresponsive_hosts']}\n\n")
 
+            # WHOIS Information section
+            if whois_results:
+                f.write("WHOIS INFORMATION\n")
+                f.write("-" * 20 + "\n")
+                for target, whois_data in whois_results.items():
+                    f.write(f"\nTarget: {target}\n")
+                    if "error" not in whois_data:
+                        if whois_data.get("domain_name", "N/A") != "N/A":
+                            f.write(f"  Domain Name: {whois_data['domain_name']}\n")
+                        if whois_data.get("registrar", "N/A") != "N/A":
+                            f.write(f"  Registrar: {whois_data['registrar']}\n")
+                        if whois_data.get("org", "N/A") != "N/A":
+                            f.write(f"  Organization: {whois_data['org']}\n")
+                        if whois_data.get("country", "N/A") != "N/A":
+                            f.write(f"  Country: {whois_data['country']}\n")
+                        if whois_data.get("creation_date", "N/A") != "N/A":
+                            f.write(f"  Creation Date: {whois_data['creation_date']}\n")
+                        if whois_data.get("expiration_date", "N/A") != "N/A":
+                            f.write(f"  Expiration Date: {whois_data['expiration_date']}\n")
+                        if whois_data.get("name_servers", "N/A") != "N/A":
+                            f.write(f"  Name Servers: {whois_data['name_servers']}\n")
+                        if whois_data.get("status", "N/A") != "N/A":
+                            f.write(f"  Status: {whois_data['status']}\n")
+                    else:
+                        f.write(f"  Error: {whois_data['error']}\n")
+                f.write("\n")
+
             # Detailed results section
             f.write("DETAILED RESULTS\n")
             f.write("-" * 20 + "\n")
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
-                    # Resolve domain to IP address
-                    ip_address = self.resolve_domain_to_ip(host)
+                    # Resolve domain to IP address (with caching)
+                    if host not in dns_cache:
+                        dns_cache[host] = self.resolve_domain_to_ip(host)
+                    ip_address = dns_cache[host]
 
-                    # Perform reverse DNS lookup on the IP address
-                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+                    # Perform reverse DNS lookup on the IP address (with caching)
+                    if ip_address != "N/A":
+                        if ip_address not in rdns_cache:
+                            rdns_cache[ip_address] = self.reverse_dns_lookup(ip_address)
+                        reverse_dns = rdns_cache[ip_address]
+                    else:
+                        reverse_dns = "N/A"
 
                     f.write(f"\nHost: {host}")
                     if ip_address != host and ip_address != "N/A":
@@ -958,11 +1164,18 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             scan_time = self.results['scan_info']['start_time']
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
-                    # Resolve domain to IP address
-                    ip_address = self.resolve_domain_to_ip(host)
+                    # Resolve domain to IP address (with caching)
+                    if host not in dns_cache:
+                        dns_cache[host] = self.resolve_domain_to_ip(host)
+                    ip_address = dns_cache[host]
 
-                    # Perform reverse DNS lookup on the IP address
-                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+                    # Perform reverse DNS lookup on the IP address (with caching)
+                    if ip_address != "N/A":
+                        if ip_address not in rdns_cache:
+                            rdns_cache[ip_address] = self.reverse_dns_lookup(ip_address)
+                        reverse_dns = rdns_cache[ip_address]
+                    else:
+                        reverse_dns = "N/A"
 
                     if data["ports"]:
                         for port, port_data in data["ports"].items():
@@ -993,6 +1206,28 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
 
         total_hosts = len(self.results["hosts"])
 
+        # DNS lookup caches to avoid redundant lookups
+        dns_cache = {}  # hostname -> IP
+        rdns_cache = {}  # IP -> reverse DNS
+
+        # Perform WHOIS lookups for targets
+        whois_results = {}
+        if HAS_WHOIS:
+            print(f"\n{Fore.YELLOW}[+] Performing WHOIS lookups for targets...{Style.RESET_ALL}")
+            for target in self.targets:
+                # Extract domain from target (skip IP ranges)
+                domain = self.extract_domain(target)
+                if domain and domain not in whois_results:
+                    whois_results[target] = self.whois_lookup(target)
+                elif not domain:
+                    # For IP addresses or ranges, try to get the first host
+                    try:
+                        network = ipaddress.ip_network(target, strict=False)
+                        if network.num_addresses == 1:
+                            whois_results[target] = self.whois_lookup(str(network.network_address))
+                    except:
+                        pass
+
         # Extract the directory name to use as prefix
         dir_name = os.path.basename(self.output_dir)
 
@@ -1014,16 +1249,50 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             f.write(f"Discovery Mode: {self.results['scan_info']['discovery_mode'].upper()}\n")
             f.write(f"Total Discovered Hosts: {total_hosts}\n\n")
 
+            # WHOIS Information section
+            if whois_results:
+                f.write("WHOIS INFORMATION\n")
+                f.write("-" * 20 + "\n")
+                for target, whois_data in whois_results.items():
+                    f.write(f"\nTarget: {target}\n")
+                    if "error" not in whois_data:
+                        if whois_data.get("domain_name", "N/A") != "N/A":
+                            f.write(f"  Domain Name: {whois_data['domain_name']}\n")
+                        if whois_data.get("registrar", "N/A") != "N/A":
+                            f.write(f"  Registrar: {whois_data['registrar']}\n")
+                        if whois_data.get("org", "N/A") != "N/A":
+                            f.write(f"  Organization: {whois_data['org']}\n")
+                        if whois_data.get("country", "N/A") != "N/A":
+                            f.write(f"  Country: {whois_data['country']}\n")
+                        if whois_data.get("creation_date", "N/A") != "N/A":
+                            f.write(f"  Creation Date: {whois_data['creation_date']}\n")
+                        if whois_data.get("expiration_date", "N/A") != "N/A":
+                            f.write(f"  Expiration Date: {whois_data['expiration_date']}\n")
+                        if whois_data.get("name_servers", "N/A") != "N/A":
+                            f.write(f"  Name Servers: {whois_data['name_servers']}\n")
+                        if whois_data.get("status", "N/A") != "N/A":
+                            f.write(f"  Status: {whois_data['status']}\n")
+                    else:
+                        f.write(f"  Error: {whois_data['error']}\n")
+                f.write("\n")
+
             # Host list section
             f.write("DISCOVERED HOSTS\n")
             f.write("-" * 20 + "\n")
             if self.results["hosts"]:
                 for host in sorted(self.results["hosts"].keys()):
-                    # Resolve domain to IP address
-                    ip_address = self.resolve_domain_to_ip(host)
+                    # Resolve domain to IP address (with caching)
+                    if host not in dns_cache:
+                        dns_cache[host] = self.resolve_domain_to_ip(host)
+                    ip_address = dns_cache[host]
 
-                    # Perform reverse DNS lookup on the IP address
-                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+                    # Perform reverse DNS lookup on the IP address (with caching)
+                    if ip_address != "N/A":
+                        if ip_address not in rdns_cache:
+                            rdns_cache[ip_address] = self.reverse_dns_lookup(ip_address)
+                        reverse_dns = rdns_cache[ip_address]
+                    else:
+                        reverse_dns = "N/A"
 
                     if ip_address != host and ip_address != "N/A":
                         if reverse_dns != "N/A" and reverse_dns != host and reverse_dns != ip_address:
@@ -1047,11 +1316,18 @@ Ping Enabled: {Fore.GREEN}{'YES' if self.enable_ping else 'NO'}{Style.RESET_ALL}
             scan_time = self.results['scan_info']['start_time']
             if self.results["hosts"]:
                 for host, data in self.results["hosts"].items():
-                    # Resolve domain to IP address
-                    ip_address = self.resolve_domain_to_ip(host)
+                    # Resolve domain to IP address (with caching)
+                    if host not in dns_cache:
+                        dns_cache[host] = self.resolve_domain_to_ip(host)
+                    ip_address = dns_cache[host]
 
-                    # Perform reverse DNS lookup on the IP address
-                    reverse_dns = self.reverse_dns_lookup(ip_address) if ip_address != "N/A" else "N/A"
+                    # Perform reverse DNS lookup on the IP address (with caching)
+                    if ip_address != "N/A":
+                        if ip_address not in rdns_cache:
+                            rdns_cache[ip_address] = self.reverse_dns_lookup(ip_address)
+                        reverse_dns = rdns_cache[ip_address]
+                    else:
+                        reverse_dns = "N/A"
 
                     discovery_method = data.get('discovery_method', 'passive')
                     writer.writerow([host, ip_address, reverse_dns, discovery_method, scan_time])
@@ -1177,7 +1453,9 @@ Examples:
   python pdive.py -f targets.txt -o /tmp/scan_results -T 100 (use 100 threads)
   python pdive.py -t "192.168.1.1,example.com,10.0.0.0/24"
   python pdive.py -t example.com -m passive
+  python pdive.py -t example.com -m passive --amass-timeout 300 (5 minute amass timeout)
   python pdive.py -t testphp.vulnweb.com -m active --nmap --ping -T 50 (throttle with 50 threads)
+  python pdive.py -t example.com -m active --amass-timeout 60 (amass timeout with partial results saved)
         """
     )
 
@@ -1189,8 +1467,8 @@ Examples:
 
     parser.add_argument('-o', '--output', default='pdive_output',
                        help='Output directory (default: pdive_output)')
-    parser.add_argument('-T', '--threads', type=int, default=5,
-                       help='Number of threads for scan throttling (default: 5)')
+    parser.add_argument('-T', '--threads', type=int, default=50,
+                       help='Number of threads for scan throttling (default: 50)')
     parser.add_argument('-m', '--mode', choices=['active', 'passive'], default='active',
                        help='Discovery mode: active (default) or passive')
     parser.add_argument('--nmap', action='store_true',
@@ -1199,9 +1477,20 @@ Examples:
                        help='Skip passive discovery and use masscan for fast port scanning with basic service enumeration (Active mode only)')
     parser.add_argument('--ping', action='store_true',
                        help='Enable ICMP ping for host discovery (disabled by default for stealth)')
-    parser.add_argument('--version', action='version', version='PDIve 1.3.4')
+    parser.add_argument('--amass-timeout', type=int, metavar='SECONDS',
+                       help='Timeout in seconds for amass scans (saves partial results on timeout)')
+    parser.add_argument('--version', action='version', version=f'PDIve {VERSION}')
 
     args = parser.parse_args()
+
+    # Validate argument values
+    if args.threads < 1 or args.threads > 1000:
+        print(f"{Fore.RED}[-] Error: Thread count must be between 1 and 1000{Style.RESET_ALL}")
+        sys.exit(1)
+
+    if args.amass_timeout is not None and (args.amass_timeout < 1 or args.amass_timeout > 3600):
+        print(f"{Fore.RED}[-] Error: Amass timeout must be between 1 and 3600 seconds{Style.RESET_ALL}")
+        sys.exit(1)
 
     # Validate mode and scan option combinations
     if args.mode == 'passive' and args.nmap:
@@ -1241,7 +1530,7 @@ Examples:
         print("Scan aborted.")
         sys.exit(1)
 
-    pdive = PDIve(targets, args.output, args.threads, args.mode, enable_ping=args.ping)
+    pdive = PDIve(targets, args.output, args.threads, args.mode, enable_ping=args.ping, amass_timeout=args.amass_timeout)
     pdive.run_scan(enable_nmap=args.nmap, masscan_only=args.masscan)
 
 
