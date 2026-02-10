@@ -5,15 +5,44 @@ All notable changes to the PDIve project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2025-09-25
+What's New in Version 1.4:
 
-### 🚀 New Features
+  Security Enhancements:
+  - Fixed command injection vulnerability in ping functionality
+  - Replaced hardcoded user paths with dynamic path resolution
+  - Improved exception handling with specific exception types
+  - Added cross-platform compatibility checks
+
+  Performance Improvements:
+  - Implemented DNS caching in report generation (eliminates redundant lookups)
+  - Increased default thread count from 5 to 50
+  - Expanded port scanning list from 21 to 50+ ports
+
+  Reliability Fixes:
+  - Fixed progress indicator race conditions
+  - Corrected URL construction bug for HTTP/HTTPS services
+  - Added input validation for command-line arguments
+
+  New Coverage:
+  - Added modern service detection (Docker, Kubernetes, MongoDB, Redis, Elasticsearch, Kafka, Consul, etc.)
+  - Expanded service name mapping for better identification
+
+  Code Quality:
+  - Consolidated version number to single constant
+  - Improved error messages and user feedback
+  - Better Windows/Unix cross-platform support
+
+  The tool is now more secure, faster, and more reliable! All changes are backward compatible.
+
+[1.3.0] - 2025-09-25
+
+  New Features
 - **Intelligent Masscan Sudo Handling**: Automatic detection of sudo access for masscan
 - **Enhanced Error Messages**: Clear, actionable error messages and suggestions
 - **Graceful Fallback**: Seamless fallback to built-in port scanner when masscan sudo unavailable
 - **Sudo Access Verification**: Pre-flight checks for masscan privileges using `sudo -n`
 
-### 🔧 Improvements
+Improvements
 - **Better User Experience**: Informative messages about masscan requirements and solutions
 - **Enhanced Documentation**: Complete rewrite of all documentation (README, INSTALL, USAGE)
 - **Comprehensive Installation Guide**: Detailed INSTALL.md with multiple installation methods
@@ -261,4 +290,5 @@ When contributing to PDIve:
 ---
 
 *Last updated: 2025-09-25*
+
 *Next scheduled review: 2025-12-25*
