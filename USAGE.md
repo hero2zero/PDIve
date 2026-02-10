@@ -1,780 +1,96 @@
-# PDIve Usage Guide
+# PDIve Usage
 
-## Table of Contents
-- [Quick Start](#quick-start)
-- [Discovery Modes](#discovery-modes)
-- [Command Line Options](#command-line-options)
-- [Target Formats](#target-formats)
-- [Passive Discovery Examples](#passive-discovery-examples)
-- [Active Discovery Examples](#active-discovery-examples)
-- [Advanced Usage](#advanced-usage)
-- [Output and Reports](#output-and-reports)
-- [Best Practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
+`pdive.py` is a CLI tool for authorized network reconnaissance.
 
-## Quick Start
+## Basic Syntax
 
-### Prerequisites Check
 ```bash
-# Verify PDIve installation
-python3 pdive.py --version
-
-# Check required tools
-which amass masscan nmap
+python pdive.py -t <target> [options]
+python pdive.py -f <targets_file> [options]
 ```
 
-### Basic Commands
-```bash
-# Passive discovery (minimal network footprint)
-python3 pdive.py -t example.com -m passive
+## Targets
 
-# Active discovery (comprehensive scanning, no ICMP ping)
-python3 pdive.py -t 192.168.1.0/24
+- Single host: `-t 10.0.0.5`
+- CIDR range: `-t 192.168.1.0/24`
+- Domain: `-t example.com`
+- Multiple targets: `-t "192.168.1.10,example.com,10.0.0.0/24"`
+- File input: `-f targets.txt` (one target per line, `#` for comments)
 
-# Active discovery with ICMP ping enabled
-python3 pdive.py -t 192.168.1.0/24 --ping
+## Common Options
 
-# Active discovery with detailed service detection
-python3 pdive.py -t 10.0.0.1 --nmap
+- `-o, --output <dir>`: Output directory (default: `pdive_output`)
+- `-T, --threads <n>`: Thread count, `1-1000` (default: `50`)
+- `-m, --mode <active|passive>`: Discovery mode (default: `active`)
+- `--ping`: Enable ICMP ping discovery (disabled by default)
+- `--masscan`: Active mode only; skip passive discovery and run fast port scan + basic service detection
+- `--nmap`: Active mode only; run detailed nmap service enumeration after masscan
+- `--amass-timeout <seconds>`: Timeout for amass (range: `1-3600`)
+- `--version`: Show version
 
-# Fast active discovery with masscan and basic service enumeration
-python3 pdive.py -t 192.168.1.0/24 --masscan
-```
+## Mode Behavior
 
-## Discovery Modes
+### Active Mode (`-m active`)
+
+Pipeline:
+1. Optional amass passive subdomain discovery
+2. Host discovery (ping if enabled, otherwise port-based)
+3. Masscan fast port scan (fallback to built-in port scan if unavailable)
+4. Service identification (basic, or detailed with `--nmap`)
+5. Full report generation (TXT + CSV)
 
 ### Passive Mode (`-m passive`)
 
-**Purpose**: Stealth reconnaissance using only public sources
-**Network Impact**: Zero direct contact with target
-**Duration**: Variable (30 seconds to several minutes depending on domain size)
-**Progress**: Real-time spinning indicator shows scan is active
+Pipeline:
+1. Passive host discovery via amass
+2. Host list output
+3. Passive report generation (TXT + CSV)
 
-**Workflow**:
-1. OWASP Amass passive subdomain enumeration (no timeout)
-2. DNS and certificate transparency log analysis
-3. No active network scanning or probing
-4. Visual progress feedback during execution
+## Example Commands
 
-**Best For**:
-- Initial reconnaissance
-- OSINT collection
-- Compliance-sensitive environments
-- Stealth operations
+### Active scans
 
-### Active Mode (`-m active`) - Default
-
-**Purpose**: Comprehensive network reconnaissance and enumeration
-**Network Impact**: Direct network scanning and probing
-**Duration**: 2-30 minutes depending on scope
-
-**Workflow**:
-1. **Phase 1**: Amass passive subdomain discovery (skipped with --masscan or --nmap flags)
-2. **Phase 2**: Host discovery (port-based detection; optional ICMP ping with --ping)
-3. **Phase 3**: Fast port scanning with Masscan (1-65535) with real-time progress bar
-4. **Phase 4**: Service enumeration (ALWAYS performed - basic by default, detailed with --nmap)
-
-**Stealth Features**:
-- ICMP ping disabled by default to avoid IDS/IPS detection
-- Port-based discovery checks common ports (80, 443, 22, etc.) to verify hosts
-- Use `--ping` flag only when ICMP is not blocked and stealth is not a concern
-
-**Best For**:
-- Authorized penetration testing
-- Network discovery
-- Vulnerability assessments
-- Infrastructure analysis
-
-### Progress Indicators (v1.3.4+)
-
-PDIve provides real-time visual feedback during long-running operations:
-
-**Progress Bars**:
-- **Masscan Scans**: Visual progress bar with percentage and elapsed time
-- **Nmap Scans**: Per-host progress bar showing scan status
-- **Format**: `[=====>                    ] 25.3% (15s)`
-
-**Progress Indicators**:
-- **Amass Scans**: Spinning indicator (|/-\) shows scan is active
-- **Long Operations**: Animated feedback confirms the tool is working
-
-**Benefits**:
-- Know your scan is progressing (not hung)
-- Estimate remaining time
-- Better user experience during large scans
-
-## Command Line Options
-
-### Required Arguments (Mutually Exclusive)
 ```bash
--t, --target    # Single target or comma-separated list
--f, --file      # File containing targets (one per line)
+python pdive.py -t 192.168.1.0/24
+python pdive.py -t 10.0.0.1 --ping
+python pdive.py -t 10.0.0.1 --nmap
+python pdive.py -t 192.168.1.0/24 --masscan
+python pdive.py -t testphp.vulnweb.com -m active --nmap --ping -T 50
 ```
 
-### Optional Arguments
+### Passive scans
+
 ```bash
--m, --mode      # Discovery mode: active (default) or passive
--o, --output    # Output directory (default: pdive_output)
--T, --threads   # Number of threads (default: 5)
---nmap          # Enable detailed Nmap scanning after masscan (active mode only)
---masscan       # Skip passive discovery, fast port scanning with basic service enumeration (active mode only)
---ping          # Enable ICMP ping for host discovery (disabled by default)
---version       # Show version information
+python pdive.py -t example.com -m passive
+python pdive.py -t example.com -m passive --amass-timeout 300
 ```
 
-### Argument Combinations
+### Target file + custom output
+
 ```bash
-# Valid combinations
-python3 pdive.py -t target.com
-python3 pdive.py -f targets.txt
-python3 pdive.py -t "ip1,ip2,domain" -m active --nmap
-python3 pdive.py -t 192.168.1.0/24 --masscan  # Fast scan with basic service enum
-python3 pdive.py -t 192.168.1.0/24 --ping --nmap
-python3 pdive.py -f domains.txt -m passive -o results
-
-# Invalid combinations
-python3 pdive.py -t target.com -f targets.txt  # Cannot use both -t and -f
-python3 pdive.py -t target.com -m passive --nmap  # Cannot use --nmap with passive mode
-python3 pdive.py -t target.com -m passive --masscan  # Cannot use --masscan with passive mode
-python3 pdive.py -t target.com --nmap --masscan  # Cannot use --nmap and --masscan together
+python pdive.py -f targets.txt -o ./scan_results -T 100
 ```
 
-## Target Formats
+## Incompatible Flag Combinations
 
-### Single Targets
-```bash
-# IP address
-python3 pdive.py -t 192.168.1.100
+- `--nmap` cannot be used with `-m passive`
+- `--masscan` cannot be used with `-m passive`
+- `--nmap` and `--masscan` cannot be used together
 
-# Domain name
-python3 pdive.py -t example.com
+## Output Files
 
-# Subdomain
-python3 pdive.py -t api.example.com
+### Active mode
 
-# CIDR network
-python3 pdive.py -t 10.0.0.0/24
-```
+- `<output_dir>/<dirname>_report_<timestamp>.txt`
+- `<output_dir>/<dirname>_results_<timestamp>.csv`
 
-### Multiple Targets (Comma-separated)
-```bash
-# Mixed targets
-python3 pdive.py -t "192.168.1.1,example.com,10.0.0.0/28"
+### Passive mode
 
-# Multiple domains (passive mode)
-python3 pdive.py -t "domain1.com,domain2.org,target.net" -m passive
+- `<output_dir>/<dirname>_passive_<timestamp>.txt`
+- `<output_dir>/<dirname>_hosts_<timestamp>.csv`
 
-# Multiple IP ranges
-python3 pdive.py -t "192.168.1.0/24,10.0.0.0/24,172.16.0.0/28"
-```
+## Notes
 
-### Target Files (`-f` option)
-```bash
-# Create target file
-cat > targets.txt << EOF
-# Passive mode targets (domains)
-example.com
-testsite.org
-company.net
-
-# Active mode targets (IPs/networks)
-192.168.1.0/24
-10.0.0.1
-server.local
-EOF
-
-# Use target file
-python3 pdive.py -f targets.txt
-```
-
-## Passive Discovery Examples
-
-### Basic Passive Discovery
-```bash
-# Single domain
-python3 pdive.py -t example.com -m passive
-
-# Multiple domains
-python3 pdive.py -t "example.com,target.org" -m passive
-
-# From file with custom output
-python3 pdive.py -f domains.txt -m passive -o passive_results
-```
-
-### Expected Output - Passive Mode
-```
-[+] Starting Passive Discovery (amass only)...
-[*] Running amass on example.com...
-[*] Amass scan started (no timeout - will run until completion)
-[*] Amass scan in progress /  (spinning indicator)
-
-[+] Amass discovered: mail.example.com
-[+] Amass discovered: www.example.com
-[+] Amass discovered: api.example.com
-[+] Amass discovered: blog.example.com
-
-[*] Passive discovery completed. Found 4 hosts.
-
-[+] PASSIVE DISCOVERY RESULTS
-==================================================
-Total hosts discovered: 4
-
-Discovered hosts:
-api.example.com
-blog.example.com
-mail.example.com
-www.example.com
-```
-
-### Corporate Domain Reconnaissance
-```bash
-# Comprehensive passive discovery for large organization
-echo -e "company.com\ncompany.org\ncompany.net" > corp_domains.txt
-python3 pdive.py -f corp_domains.txt -m passive -o corporate_recon
-
-# Expected to discover:
-# - Subdomains across all TLDs
-# - Development/staging environments
-# - Regional offices (us.company.com, eu.company.com)
-# - Service-specific subdomains (mail, vpn, ftp, etc.)
-```
-
-## Active Discovery Examples
-
-### Basic Active Discovery
-```bash
-# Local network scan (no ICMP ping, port-based discovery only)
-python3 pdive.py -t 192.168.1.0/24
-
-# Fast scan with masscan only (maximum speed, no service enumeration)
-python3 pdive.py -t 192.168.1.0/24 --masscan
-
-# Local network scan with ICMP ping enabled
-python3 pdive.py -t 192.168.1.0/24 --ping
-
-# Single host comprehensive scan with detailed service detection
-python3 pdive.py -t 10.0.0.1 --nmap
-
-# Mixed targets
-python3 pdive.py -t "192.168.1.1,example.com,server.local"
-```
-
-### Expected Output - Active Mode (Default, No Ping)
-```
-[+] Starting Active Discovery Mode
-[!] Ping is disabled by default. Use --ping to enable ICMP ping discovery.
-[*] Phase 1: Passive subdomain discovery with amass
-[*] Phase 2: Host discovery and connectivity check
-
-[+] Starting Host Discovery...
-[*] Processing target: 192.168.1.0/24
-[*] Ping discovery disabled (use --ping to enable)
-[*] Phase 1: Port-based discovery for 254 hosts...
-[+] Host discovered (port): 192.168.1.1
-[+] Host discovered (port): 192.168.1.100
-
-[*] Host discovery completed. Found 2 live hosts from 254 total hosts.
-[*] All hosts discovered via port-based detection (ping disabled)
-
-[*] Phase 3: Fast port scanning with masscan
-[*] Running masscan on 2 hosts...
-[*] Masscan port scan in progress [=====>                    ] 25.3% (15s)
-[+] Masscan found: 192.168.1.1:80
-[+] Masscan found: 192.168.1.1:443
-[+] Masscan found: 192.168.1.100:22
-
-[*] Phase 4: Basic service identification
-[+] Service identified: 192.168.1.1:80 -> http (nginx/1.18)
-[+] Service identified: 192.168.1.1:443 -> https (nginx/1.18)
-[+] Service identified: 192.168.1.100:22 -> ssh
-```
-
-### Network Segment Discovery
-```bash
-# Fast scan for quick mapping (masscan with basic service enumeration)
-python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" --masscan -T 100
-
-# Scan multiple network segments (stealth mode, no ping, with amass and basic service enum)
-python3 pdive.py -t "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24" -T 100
-
-# DMZ network scan with detailed nmap enumeration and ping
-sudo python3 pdive.py -t 172.16.0.0/24 --nmap --ping -o dmz_scan
-
-# Internal infrastructure fast discovery (masscan with basic service enumeration)
-python3 pdive.py -t "192.168.0.0/16" --masscan -T 200 -o internal_quick
-
-# Internal infrastructure discovery (amass + stealth + basic service enum)
-python3 pdive.py -t "192.168.0.0/16" -T 200 -o internal_recon
-
-# Internal scan with ICMP ping (when firewall allows)
-python3 pdive.py -t "192.168.0.0/16" -T 200 --ping -o internal_recon
-```
-
-### Domain-to-IP Active Scanning
-```bash
-# Two-phase approach: passive discovery then active scanning
-# Phase 1: Passive discovery
-python3 pdive.py -t company.com -m passive -o phase1
-
-# Phase 2: Extract discovered hosts and scan actively
-# (Manual step: extract hosts from phase1 results)
-python3 pdive.py -f discovered_hosts.txt -o phase2 --nmap
-```
-
-## Advanced Usage
-
-### Performance Optimization
-```bash
-# Maximum speed scanning (masscan with basic service enum, requires powerful system)
-sudo python3 pdive.py -t 10.0.0.0/16 --masscan -T 500
-
-# High-speed scanning with full workflow (amass + basic service enum, requires powerful system)
-sudo python3 pdive.py -t 10.0.0.0/16 -T 500
-
-# Conservative scanning (slower networks/systems)
-python3 pdive.py -t target.com -T 10
-
-# Memory-efficient large network scan (fast with basic service enum)
-python3 pdive.py -t 172.16.0.0/12 --masscan -T 50 -o large_scan
-
-# Memory-efficient large network scan with full workflow
-python3 pdive.py -t 172.16.0.0/12 -T 50 -o large_scan
-```
-
-### Stealth and Rate Limiting
-```bash
-# Maximum stealth: low threads, no ping
-python3 pdive.py -t target.com -T 5
-
-# Stealth scan with moderate speed
-python3 pdive.py -t 192.168.1.0/24 -T 20
-
-# Passive-only reconnaissance (no active probing)
-python3 pdive.py -t "target1.com,target2.org,target3.net" -m passive
-
-# Less stealthy: enable ping for faster discovery
-python3 pdive.py -t 192.168.1.0/24 -T 50 --ping
-
-# Active scan without masscan (slower but more controlled)
-# PDIve automatically falls back if masscan sudo access unavailable
-python3 pdive.py -t 192.168.1.0/24 -T 20
-```
-
-### Comprehensive Assessment Workflow
-```bash
-# Step 1: Passive reconnaissance
-python3 pdive.py -t target.com -m passive -o step1_passive
-
-# Step 2: Active host discovery with basic service enum
-python3 pdive.py -t target.com -o step2_active
-
-# Step 3: Fast port scanning (masscan with basic service enum)
-sudo python3 pdive.py -t target.com --masscan -o step3_fast
-
-# Step 4: Detailed service enumeration (nmap for comprehensive analysis)
-sudo python3 pdive.py -t target.com --nmap -o step4_detailed
-
-# Step 5: Infrastructure mapping with detailed enumeration
-python3 pdive.py -t "target.com,target.org,target.net" --nmap -o step5_infrastructure
-```
-
-### Custom Output Management
-```bash
-# Organized output by date
-DATE=$(date +%Y%m%d)
-python3 pdive.py -t target.com -o "scans/${DATE}/target_com"
-
-# Separate passive and active results
-python3 pdive.py -t company.com -m passive -o "results/passive/company"
-python3 pdive.py -t company.com -o "results/active/company" --nmap
-
-# Project-based organization
-python3 pdive.py -t client.com -o "projects/client_pentest/recon"
-```
-
-## Output and Reports
-
-### Report Types Generated
-
-#### Passive Mode Reports
-1. **Host List Report** (`pdive_passive_TIMESTAMP.txt`)
-   - Summary statistics
-   - Discovered hosts list
-   - DNS resolution information
-
-2. **CSV Host List** (`pdive_hosts_TIMESTAMP.csv`)
-   - Host,IP_Address,Reverse_DNS,Discovery_Method,Scan_Time
-   - Suitable for spreadsheet analysis
-
-#### Active Mode Reports
-1. **Detailed Text Report** (`pdive_report_TIMESTAMP.txt`)
-   - Scan summary with statistics
-   - Host-by-host analysis
-   - Port and service details
-
-2. **CSV Results** (`pdive_results_TIMESTAMP.csv`)
-   - Host,IP_Address,Reverse_DNS,Port,Protocol,State,Service,Scan_Time
-   - Database-ready format
-
-### Report Analysis Examples
-
-#### Passive Mode Analysis
-```bash
-# Extract all discovered subdomains
-grep -E '^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' pdive_passive_*.txt
-
-# Count discoveries by domain
-cat pdive_hosts_*.csv | cut -d',' -f1 | sort | uniq -c | sort -nr
-
-# Find interesting subdomains
-grep -E '(api|admin|test|dev|staging|vpn|mail)' pdive_passive_*.txt
-```
-
-#### Active Mode Analysis
-```bash
-# Extract all open ports
-grep "Open Ports:" -A 10 pdive_report_*.txt
-
-# Find web services
-grep -E "(80|443|8080|8443)" pdive_results_*.csv
-
-# Identify SSH services
-grep ":22/tcp" pdive_report_*.txt
-
-# Count services by type
-cut -d',' -f7 pdive_results_*.csv | sort | uniq -c | sort -nr
-```
-
-### Integration with Other Tools
-
-#### Nmap Integration
-```bash
-# Extract hosts with open ports for detailed nmap scan
-grep -E "^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" pdive_results_*.csv | \
-    cut -d',' -f1 | sort -u > live_hosts.txt
-
-# Run custom nmap scan on discovered hosts
-nmap -sV -sC -iL live_hosts.txt -oA detailed_scan
-```
-
-#### Masscan Integration
-```bash
-# Extract IP ranges for custom masscan
-grep -E "^[0-9]+\.[0-9]+\.[0-9]+\." pdive_hosts_*.csv | \
-    cut -d',' -f2 | sort -u > target_ips.txt
-
-# Custom masscan with specific ports
-sudo masscan -iL target_ips.txt -p80,443,22,21,25 --rate 1000
-```
-
-## Best Practices
-
-### Legal and Ethical Guidelines
-
-#### Before Scanning
-```bash
-# 1. Obtain written authorization
-# 2. Define scope clearly
-# 3. Set time boundaries
-# 4. Understand legal implications
-
-# Example: Safe testing targets
-python3 pdive.py -t 127.0.0.1  # Always safe
-python3 pdive.py -t your-own-domain.com -m passive  # Your domains only
-```
-
-#### Authorization Confirmation
-PDIve always prompts for authorization:
-```
-WARNING: This tool is for authorized security testing only!
-Ensure you have proper permission before scanning any network.
-
-Targets to scan: example.com
-Do you have authorization to scan these targets? (y/N):
-```
-
-### Operational Best Practices
-
-#### Start Small and Scale
-```bash
-# 1. Test with single host (no ping for stealth)
-python3 pdive.py -t single-host.com -T 5
-
-# 2. Small network segment (stealth mode)
-python3 pdive.py -t 192.168.1.0/28 -T 10
-
-# 3. Full network with ping (if authorized and network allows)
-python3 pdive.py -t 192.168.0.0/16 -T 50 --ping
-
-# 4. Full network stealth mode (no ping)
-python3 pdive.py -t 192.168.0.0/16 -T 50
-```
-
-#### Progressive Disclosure
-```bash
-# Phase 1: Passive reconnaissance (minimal impact, no active scanning)
-python3 pdive.py -t target.com -m passive
-
-# Phase 2: Stealth host discovery (low impact, no ping)
-python3 pdive.py -t target.com -T 10
-
-# Phase 3: Standard host discovery with ping (medium impact)
-python3 pdive.py -t target.com -T 20 --ping
-
-# Phase 4: Service enumeration with nmap (higher impact)
-python3 pdive.py -t target.com --nmap -T 20
-```
-
-#### Resource Management
-```bash
-# Monitor system resources during large scans
-htop  # Monitor CPU/memory usage
-netstat -i  # Monitor network interface utilization
-
-# Adjust threading based on system capacity
-# Low-end system: -T 10-20
-# Medium system: -T 50-100
-# High-end system: -T 100-500
-```
-
-### Network Considerations
-
-#### Firewall and IDS Awareness
-```bash
-# Maximum stealth: no ping, low threads
-python3 pdive.py -t target.com -T 5
-
-# Moderate stealth: port-based discovery only (default)
-python3 pdive.py -t target.com -T 20
-
-# Passive-only to avoid all network signatures
-python3 pdive.py -t target.com -m passive
-
-# Less stealthy: ICMP ping enabled (will trigger IDS/IPS)
-python3 pdive.py -t target.com -T 20 --ping
-
-# Distributed scanning (manual process)
-# Split large networks across multiple systems/times
-```
-
-**Stealth Recommendations**:
-- **Never use --ping** on networks with active IDS/IPS
-- Port-based discovery (default) is less likely to trigger alerts
-- Reduce thread count (`-T 5-10`) for maximum stealth
-- Use passive mode when stealth is paramount
-
-#### Network Bandwidth Management
-```bash
-# Internal network: Higher thread counts acceptable
-python3 pdive.py -t 192.168.0.0/16 -T 200
-
-# Internet targets: Conservative approach
-python3 pdive.py -t internet-target.com -T 20
-
-# Shared/limited bandwidth: Minimal impact
-python3 pdive.py -t target.com -T 5
-```
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-#### Masscan Sudo Issues
-```bash
-# Issue: "permission denied" or "sudo password required"
-# Solution 1: Run entire script with sudo
-sudo python3 pdive.py -t target.com
-
-# Solution 2: Configure passwordless sudo for masscan
-sudo visudo
-# Add: username ALL=(ALL) NOPASSWD: /usr/bin/masscan
-
-# Solution 3: Accept automatic fallback to basic scan
-# PDIve automatically handles this in v1.3
-```
-
-#### Amass Configuration Issues
-```bash
-# Issue: Amass taking a long time
-# Note: As of v1.3.3, amass has no timeout and will run until completion
-# Watch the progress indicator (spinning |/-\) to confirm scan is active
-# Large domains may take several minutes to enumerate
-
-# Issue: Amass not found
-which amass
-sudo apt install amass  # Or manual installation
-
-# Issue: Amass configuration errors
-rm -rf ~/.config/amass  # Reset configuration
-
-# Debug: Test amass manually
-amass enum -d example.com -v
-```
-
-#### Performance Issues
-```bash
-# Issue: High CPU usage
-# Solution: Reduce thread count
-python3 pdive.py -t target.com -T 10
-
-# Issue: Memory exhaustion
-# Solution: Scan smaller networks or reduce threads
-python3 pdive.py -t 192.168.1.0/25 -T 20  # Instead of /24
-
-# Issue: Network timeouts
-# Solution: Conservative threading
-python3 pdive.py -t target.com -T 5
-
-# Issue: Amass appears to hang
-# Solution: Check progress indicator - if spinning, scan is active
-# Large domains can take 5-10+ minutes for comprehensive enumeration
-# No timeout enforced as of v1.3.3
-```
-
-#### Output and Permission Issues
-```bash
-# Issue: Cannot write to output directory
-# Solution: Check permissions
-mkdir -p custom_output
-chmod 755 custom_output
-python3 pdive.py -t target.com -o custom_output
-
-# Issue: Reports not generated
-# Solution: Check disk space and permissions
-df -h  # Check available space
-ls -la output_directory/  # Check permissions
-```
-
-### Debugging and Verbose Output
-
-#### Enable Debug Information
-```bash
-# Add debug prints (modify pdive.py temporarily)
-# Or run with Python verbose mode
-python3 -v pdive.py -t target.com
-
-# Monitor network activity
-sudo tcpdump -i any host target.com
-
-# Check DNS resolution
-nslookup target.com
-dig target.com
-```
-
-#### Validate Tool Dependencies
-```bash
-# Check all required tools
-echo "Checking dependencies..."
-python3 --version
-amass --version
-masscan --version
-nmap --version
-
-# Check Python modules
-python3 -c "import requests, colorama, urllib3; print('Python modules OK')"
-python3 -c "import nmap; print('python-nmap module OK')"
-
-# Check network connectivity
-ping -c 1 8.8.8.8
-curl -I https://crt.sh
-```
-
-### Performance Tuning
-
-#### System-Specific Optimization
-```bash
-# For high-performance systems
-sudo python3 pdive.py -t large-network.com -T 300
-
-# For resource-constrained systems
-python3 pdive.py -t target.com -T 5
-
-# For network-limited environments
-python3 pdive.py -t target.com -T 10 -m passive
-```
-
-#### Monitoring and Optimization
-```bash
-# Monitor PDIve performance
-top -p $(pgrep -f pdive.py)
-
-# Monitor network utilization
-iftop -i eth0
-
-# Monitor DNS queries
-sudo tcpdump -i any port 53
-
-# Adjust based on observations:
-# - High CPU: Reduce threads
-# - Network saturation: Reduce threads or use passive mode
-# - Memory issues: Scan smaller segments
-```
-
-## Example Workflows
-
-### Penetration Testing Workflow
-```bash
-# 1. Passive reconnaissance (OSINT phase)
-python3 pdive.py -t client.com -m passive -o "pentest/01-passive"
-
-# 2. Stealth active host discovery (no ping, with basic service enum)
-python3 pdive.py -t client.com -o "pentest/02-stealth-discovery" -T 50
-
-# 3. Fast port mapping (masscan with basic service enum)
-sudo python3 pdive.py -t client.com --masscan -T 100 -o "pentest/03-fast-ports"
-
-# 4. Standard active discovery (with ping if allowed, basic service enum)
-python3 pdive.py -t client.com --ping -o "pentest/04-standard-discovery" -T 50
-
-# 5. Detailed enumeration with nmap (comprehensive service detection)
-sudo python3 pdive.py -t client.com --nmap -o "pentest/05-detailed" -T 100
-
-# 6. Infrastructure mapping with detailed service analysis
-python3 pdive.py -t "client.com,client.org,client.net" --nmap --ping -o "pentest/06-infrastructure"
-
-# 7. Analysis and reporting
-grep -r "ssh\|rdp\|ftp" pentest/*/
-```
-
-### Security Monitoring Workflow
-```bash
-# Weekly passive monitoring
-DATE=$(date +%Y%m%d)
-python3 pdive.py -t company.com -m passive -o "monitoring/passive/${DATE}"
-
-# Monthly active assessment
-python3 pdive.py -t "company.com,company.org" -o "monitoring/active/${DATE}"
-
-# Compare results over time
-diff monitoring/passive/20231201/pdive_hosts_*.csv \
-     monitoring/passive/20231215/pdive_hosts_*.csv
-```
-
-### Red Team Reconnaissance
-```bash
-# Phase 1: Stealth passive collection (no network footprint)
-python3 pdive.py -t target.com -m passive -T 5 -o "redteam/phase1"
-
-# Phase 2: Minimal-impact active probing (no ping, low threads)
-python3 pdive.py -t target.com -T 5 -o "redteam/phase2"
-
-# Phase 3: Targeted enumeration (high-value targets only, still no ping)
-python3 pdive.py -t high-value-hosts.txt --nmap -T 10 -o "redteam/phase3"
-
-# IMPORTANT: Never use --ping during red team operations
-# ICMP ping will trigger IDS/IPS alerts and expose your presence
-```
-
-## Version-Specific Features
-
-### v1.3.4 Updates
-- **Progress Bars**: Added visual progress bars for masscan and nmap scans with elapsed time
-- **Always-On Service Scanning**: Service enumeration now ALWAYS performed on all discovered ports
-- **Enhanced Visibility**: Real-time progress indicators show scan status
-- **Improved UX**: Better feedback during long-running operations
-
-### v1.3.3 Updates
-- **No Timeout for Amass**: Amass scans run until completion (no artificial timeout)
-- **Progress Indicators**: Visual spinning indicators show amass scan is active
-
-This comprehensive usage guide should help users effectively utilize PDIve v1.3.4 for their authorized security testing and reconnaissance needs.
+- The tool prompts for authorization before scanning.
+- Some features depend on external binaries/modules (`amass`, `masscan`, `python-nmap`, `python-whois`, `requests`, `colorama`).
+- Run only against assets you are explicitly authorized to test.
